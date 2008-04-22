@@ -27,10 +27,6 @@ struct listnode {
 };
 
 static int writeascii (MSTrace *mst);
-static int writebinarysac (struct SACHeader *sh, float *fdata, int npts,
-			   char *outfile);
-static int writealphasac (struct SACHeader *sh, float *fdata, int npts,
-			  char *outfile);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt, int dasharg);
 static int readlistfile (char *listfile);
@@ -38,11 +34,11 @@ static struct listnode *addnode (struct listnode **listroot, void *key, int keyl
 				 void *data, int datalen);
 static void usage (void);
 
-static int   verbose      = 0;
-static int   reclen       = -1;
-static int   indifile     = 0;
-static int   reconstruct  = 0;
-static int   outformat    = 1;
+static int verbose      = 0;
+static int reclen       = -1;
+static int indifile     = 0;
+static int reconstruct  = 0;
+static int outformat    = 1;
 
 /* A list of input files */
 struct listnode *filelist = 0;
@@ -83,6 +79,14 @@ main (int argc, char **argv)
 	    msr_print (msr, verbose - 2);
 	  
 	  mst_addmsrtogroup (mstg, msr, 1, -1.0, -1.0);
+	  
+	  /* If processing each record individually, write ASCII and reset */
+	  if ( ! reconstruct )
+	    {
+	      writeascii (mstg->traces);
+	      
+	      mstg = mst_initgroup (mstg);
+	    }
 	  
 	  totalrecs++;
 	  totalsamps += msr->samplecnt;
@@ -141,14 +145,15 @@ main (int argc, char **argv)
 static int
 writeascii (MSTrace *mst)
 {
+  FILE *ofp;
   char outfile[1024];
-  char timestr[60];
+  char timestr[50];
+  char srcname[50];
+  char *samptype;
   
-  float *fdata = 0;
-  double *ddata = 0;
-  int32_t *idata = 0;
-  hptime_t submsec;
-  int idx;
+  int line, col, cnt, samplesize;
+  int lines;
+  void *sptr;
   
   if ( ! mst )
     return -1;
@@ -160,43 +165,27 @@ writeascii (MSTrace *mst)
     fprintf (stderr, "Writing ASCII for %.8s.%.8s.%.8s.%.8s\n",
 	     mst->network, mst->station, mst->location, mst->channel);
   
-  /* Generate ISO timestr */
-  ms_hptimeisotimestr (mst->starttime, timestr, 1);
+  /* Generate source name and ISO time string */
+  mst_srcname (mst, srcname, 1);
+  ms_hptime2isotimestr (mst->starttime, timestr, 1);
   
-  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year/Month/DayTHour:Min:Sec.Subsec */
+  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec */
   snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s",
 	    mst->network, mst->station, mst->location, mst->channel,
 	    mst->dataquality, timestr);
   
-  /* Open file */
-  // Open file
-
-  /* Print header line: "Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, INTEGER|FLOAT, Units" */
-  // print header
-  
-  // print samples:
-
-  /* Convert data buffer to floats */
-  if ( mst->sampletype == 'f' )
+  /* Set sample type description */
+  if ( mst->sampletype == 'f' || mst-> sampletype == 'd' )
     {
-      fdata = (float *) mst->datasamples;
-
-      for (idx=0; idx < mst->numsamples; idx++)
-	fdata[idx] = (float) idata[idx];
+      samptype = "FLOAT";
     }
   else if ( mst->sampletype == 'i' )
     {
-      idata = (int32_t *) mst->datasamples;
-      
-      for (idx=0; idx < mst->numsamples; idx++)
-	fdata[idx] = (float) idata[idx];
+      samptype = "INTEGER";
     }
-  else if ( mst->sampletype == 'd' )
+  else if ( mst->sampletype == 'a' )
     {
-      ddata = (double *) mst->datasamples;
-
-      for (idx=0; idx < mst->numsamples; idx++)
-	fdata[idx] = (float) ddata[idx];
+      samptype = "ASCII";
     }
   else
     {
@@ -205,141 +194,105 @@ writeascii (MSTrace *mst)
       return -1;
     }
   
-  if ( outformat == 1 )
+  /* Open output file */
+  if ( (ofp = fopen (outfile, "wb")) == NULL )
+    {
+      fprintf (stderr, "Cannot open output file: %s (%s)\n",
+	       outfile, strerror(errno));
+      return -1;
+    }
+  
+  /* Header format:
+   * "Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units" */
+  
+  if ( outformat == 1 || mst->sampletype == 'a' )
     {
       if ( verbose > 1 )
-	fprintf (stderr, "Writing binary SAC file: %s\n", outfile);
+	fprintf (stderr, "Writing ASCII sample list file: %s\n", outfile);
       
-      if ( writebinarysac (&sh, fdata, mst->numsamples, outfile) )
-	return -1;
+      /* Print header line */
+      fprintf (ofp, "%s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
+	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
+      
+      lines = (mst->numsamples / 6) + 1;
+      
+      if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
+	{
+	  fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
+	}
+      
+      if ( mst->sampletype == 'a' )
+	fprintf (ofp, "%.*s\n", mst->numsamples, (char *)mst->datasamples);
+      else
+	for ( cnt = 0, line = 0; line < lines; line++ )
+	  {
+	    for ( col = 0; col < 6 ; col ++ )
+	      {
+		if ( cnt < mst->numsamples )
+		  {
+		    sptr = (char*)mst->datasamples + (cnt * samplesize);
+		    
+		    if ( mst->sampletype == 'i' )
+		      fprintf (ofp, "%10d  ", *(int32_t *)sptr);
+		    
+		    else if ( mst->sampletype == 'f' )
+		      fprintf (ofp, "%10.8g  ", *(float *)sptr);
+		    
+		    else if ( mst->sampletype == 'd' )
+		      fprintf (ofp, "%10.10g  ", *(double *)sptr);
+		    
+		    cnt++;
+		  }
+	      }
+	    fprintf (ofp, "\n");
+	  }
     }
   else if ( outformat == 2 )
     {
-      if ( verbose > 1 )
-	fprintf (stderr, "Writing alphanumeric SAC file: %s\n", outfile);
+      hptime_t samptime = mst->starttime;
+      hptime_t hpdelta = ( mst->samprate ) ? (hptime_t) (HPTMODULUS / mst->samprate) : 0;
       
-      if ( writealphasac (&sh, fdata, mst->numsamples, outfile) )
-	return -1;
+      if ( verbose > 1 )
+	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outfile);
+      
+      /* Print header line */
+      fprintf (ofp, "%s, %d samples, %g sps, %s, TSPAIR, %s, Counts\n",
+	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
+      
+      if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
+	{
+	  fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
+	}
+      
+      for ( cnt = 0; cnt < mst->numsamples; cnt++ )
+	{
+	  ms_hptime2isotimestr (samptime, timestr, 1);
+	  
+	  sptr = (char*)mst->datasamples + (cnt * samplesize);
+	  
+	  if ( mst->sampletype == 'i' )
+	    fprintf (ofp, "%s  %d\n", timestr, *(int32_t *)sptr);
+	  
+	  else if ( mst->sampletype == 'f' )
+	    fprintf (ofp, "%s  %.8g\n", timestr, *(float *)sptr);
+	  
+	  else if ( mst->sampletype == 'd' )
+	    fprintf (ofp, "%s  %.10g\n", timestr, *(double *)sptr);
+	  
+	  samptime += hpdelta;
+	}
     }
   else
     {
       fprintf (stderr, "Error, unrecognized format: '%d'\n", outformat);
     }
   
-  // close file
+  fclose (ofp);
   
   fprintf (stderr, "Wrote %d samples to %s\n", mst->numsamples, outfile);
   
   return mst->numsamples;
-}  /* End of writesac() */
-
-
-/***************************************************************************
- * writebinarysac:
- * Write binary SAC file.
- *
- * Returns 0 on success, and -1 on failure.
- ***************************************************************************/
-static int
-writebinarysac (struct SACHeader *sh, float *fdata, int npts, char *outfile)
-{
-  FILE *ofp;
-  
-  /* Open output file */
-  if ( (ofp = fopen (outfile, "wb")) == NULL )
-    {
-      fprintf (stderr, "Cannot open output file: %s (%s)\n",
-	       outfile, strerror(errno));
-      return -1;
-    }
-  
-  /* Write SAC header to output file */
-  if ( fwrite (sh, sizeof(struct SACHeader), 1, ofp) != 1 )
-    {
-      fprintf (stderr, "Error writing SAC header to output file\n");
-      return -1;
-    }
-  
-  /* Write float data to output file */
-  if ( fwrite (fdata, sizeof(float), npts, ofp) != npts )
-    {
-      fprintf (stderr, "Error writing SAC data to output file\n");
-      return -1;
-    }
-  
-  fclose (ofp);
-  
-  return 0;
-}  /* End of writebinarysac() */
-
-
-/***************************************************************************
- * writealphasac:
- * Write alphanumeric SAC file.
- *
- * Returns 0 on success, and -1 on failure.
- ***************************************************************************/
-static int
-writealphasac (struct SACHeader *sh, float *fdata, int npts, char *outfile)
-{
-  FILE *ofp;
-  int idx, fidx;
-  
-  /* Declare and set up pointers to header variable type sections */
-  float   *fhp = (float *) sh;
-  int32_t *ihp = (int32_t *) sh + (NUMFLOATHDR);
-  char    *shp = (char *) sh + (NUMFLOATHDR * 4 + NUMINTHDR * 4);
-  
-  /* Open output file */
-  if ( (ofp = fopen (outfile, "wb")) == NULL )
-    {
-      fprintf (stderr, "Cannot open output file: %s (%s)\n",
-	       outfile, strerror(errno));
-      return -1;
-    }
-  
-  /* Write SAC header float variables to output file, 5 variables per line */
-  for (idx=0; idx < NUMFLOATHDR; idx += 5)
-    {
-      for (fidx=idx; fidx < (idx+5) && fidx < NUMFLOATHDR; fidx++)
-	fprintf (ofp, "%#15.7g", *(fhp + fidx));
-      
-      fprintf (ofp, "\n");
-    }
-  
-  /* Write SAC header integer variables to output file, 5 variables per line */
-  for (idx=0; idx < NUMINTHDR; idx += 5)
-    {
-      for (fidx=idx; fidx < (idx+5) && fidx < NUMINTHDR; fidx++)
-	fprintf (ofp, "%10d", *(ihp + fidx));
-      
-      fprintf (ofp, "\n");
-    }
-  
-  /* Write SAC header string variables to output file, 3 variables per line */
-  for (idx=0; idx < NUMSTRHDR; idx += 3)
-    {
-      if ( idx == 0 )
-	fprintf (ofp, "%-8.8s%-16.16s", shp, shp + 8);
-      else
-	fprintf (ofp, "%-8.8s%-8.8s%-8.8s", shp+(idx*8), shp+((idx+1)*8), shp+((idx+2)*8));
-      
-      fprintf (ofp, "\n");
-    }
-  
-  /* Write float data to output file, 5 values per line */
-  for (idx=0; idx < npts; idx += 5)
-    {
-      for (fidx=idx; fidx < (idx+5) && fidx < npts && fidx >= 0; fidx++)
-	fprintf (ofp, "%#15.7g", *(fdata + fidx));
-      
-      fprintf (ofp, "\n");
-    }
-  
-  fclose (ofp);
-  
-  return 0;
-}  /* End of writealphasac() */
+}  /* End of writeascii() */
 
 
 /***************************************************************************
@@ -675,7 +628,7 @@ usage (void)
 	   " -i             Process each input file individually instead of merged\n"
 	   " -R             Reconstruct time-series across SEED data records\n"
 	   " -f format      Specify ASCII output format (default is 1):\n"
-           "                  1=Header followed by sample values\n"
+           "                  1=Header followed by sample value list\n"
            "                  2=Header followed by time-sample value pairs\n"
 	   "\n");
 }  /* End of usage() */
