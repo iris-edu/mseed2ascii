@@ -1,0 +1,78 @@
+.TH MSEED2ASCII 1 2008/04/21
+.SH NAME
+Mini-SEED to ASCII converter
+
+.SH SYNOPSIS
+.nf
+mseed2ascii [options] file1 [file2 file3 ...]
+
+.fi
+.SH DESCRIPTION
+\fBmseed2ascii\fP converts Mini-SEED time-series data to ASCII format.
+By default all aspects of the input files are automatically detected
+(record length, byte order, etc.).  If an input file name is prefixed
+with an '@' character the file is assumed to contain a list of input
+data files, see \fILIST FILES\fP below.
+
+A separate output file is written for each continuous time-series in
+the input data.  Output file names are of the form:
+
+.nf
+"Net.Sta.Loc.Chan.Qual.YYYY,DDD,HH:MM:SS.FFFFFF"
+
+For example:
+"TA.ELFS..LHZ.R.2006,123,15:36:19.000000"
+.fi
+
+If the input file name is "-" input Mini-SEED records will be read
+from standard input.
+
+.SH OPTIONS
+
+.IP "-V         "
+Print program version and exit.
+
+.IP "-h         "
+Print program usage and exit.
+
+.IP "-v         "
+Be more verbose.  This flag can be used multiple times ("-v -v" or
+"-vv") for more verbosity.
+
+.IP "-r \fIbytes\fP"
+Specify the Mini-SEED record length in \fIbytes\fP, by default this is
+autodetected.
+
+.IP "-i         "
+Process each input file individually.  By default all input files are
+read and all data is buffered in memory before ASCII files are written.
+This allows time-series spanning mutilple input files to be merged and
+written in a single ASCII file.  The intention is to use this option
+when processing large amounts of data in order to keep memory usage
+within reasonable limits.
+
+.IP "-R         "
+Reconstruct contiguous time-series from the independent data segments
+contained in Mini-SEED records.  Without this option each input
+Mini-SEED record will result in a header and sample values, with this
+option a header will only be printed for each separate, contiguous
+time-series segment.
+
+.IP "-f \fIformat\fP"
+The default output format is binary ASCII with the same byte order as
+the host computer.  This option forces the format for every output
+file:
+
+.nf
+1 : Alphanumeric ASCII format
+2 : Binary ASCII format, host byte order (default)
+3 : Binary ASCII format, little-endian
+4 : Binary ASCII format, big-endian
+.fi
+
+.SH AUTHORS
+.nf
+Chad Trabant
+Rob Casey
+IRIS Data Management Center
+.fi
