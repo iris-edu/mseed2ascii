@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2008.112
+ * modified 2008.113
  ***************************************************************************/
 
 #include <stdio.h>
@@ -34,11 +34,12 @@ static struct listnode *addnode (struct listnode **listroot, void *key, int keyl
 				 void *data, int datalen);
 static void usage (void);
 
-static int verbose      = 0;
-static int reclen       = -1;
-static int indifile     = 0;
-static int reconstruct  = 0;
-static int outformat    = 1;
+static int    verbose      = 0;    /* Verbosity level */
+static int    reclen       = -1;   /* Record length, -1 = autodetected */
+static int    indifile     = 0;    /* Individual file processing flag */
+static int    outformat    = 1;    /* Output file format */
+static double timetol      = -1.0; /* Time tolerance for continuous traces */
+static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
 
 /* A list of input files */
 struct listnode *filelist = 0;
@@ -78,15 +79,7 @@ main (int argc, char **argv)
 	  if ( verbose > 1)
 	    msr_print (msr, verbose - 2);
 	  
-	  mst_addmsrtogroup (mstg, msr, 1, -1.0, -1.0);
-	  
-	  /* If processing each record individually, write ASCII and reset */
-	  if ( ! reconstruct )
-	    {
-	      writeascii (mstg->traces);
-	      
-	      mstg = mst_initgroup (mstg);
-	    }
+	  mst_addmsrtogroup (mstg, msr, 1, timetol, sampratetol);
 	  
 	  totalrecs++;
 	  totalsamps += msr->samplecnt;
@@ -169,8 +162,8 @@ writeascii (MSTrace *mst)
   mst_srcname (mst, srcname, 1);
   ms_hptime2isotimestr (mst->starttime, timestr, 1);
   
-  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec */
-  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s",
+  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
+  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.ASCII",
 	    mst->network, mst->station, mst->location, mst->channel,
 	    mst->dataquality, timestr);
   
@@ -203,7 +196,7 @@ writeascii (MSTrace *mst)
     }
   
   /* Header format:
-   * "Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units" */
+   * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units" */
   
   if ( outformat == 1 || mst->sampletype == 'a' )
     {
@@ -211,7 +204,7 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII sample list file: %s\n", outfile);
       
       /* Print header line */
-      fprintf (ofp, "%s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
+      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
 	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
       
       lines = (mst->numsamples / 6) + 1;
@@ -256,7 +249,7 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outfile);
       
       /* Print header line */
-      fprintf (ofp, "%s, %d samples, %g sps, %s, TSPAIR, %s, Counts\n",
+      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, TSPAIR, %s, Counts\n",
 	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
       
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
@@ -331,10 +324,14 @@ parameter_proc (int argcount, char **argvec)
 	{
 	  indifile = 1;
 	}
-      else if (strcmp (argvec[optind], "-R") == 0)
-	{
-	  reconstruct = 1;
-	}
+      else if (strcmp (argvec[optind], "-tt") == 0)
+        {
+          timetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
+        }
+      else if (strcmp (argvec[optind], "-rt") == 0)
+        {
+          sampratetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
+        }
       else if (strcmp (argvec[optind], "-f") == 0)
 	{
 	  outformat = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
@@ -423,6 +420,7 @@ parameter_proc (int argcount, char **argvec)
  * argcount: total arguments in argvec
  * argvec: argument list
  * argopt: index of option to process, value is expected to be at argopt+1
+ * dasharg: flag indicating if the value can beging with a dash (-)
  *
  * Returns value on success and exits with error message on failure
  ***************************************************************************/
@@ -621,14 +619,15 @@ usage (void)
   fprintf (stderr, "Usage: %s [options] input1.mseed [input2.mseed ...]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## Options ##\n"
-	   " -V             Report program version\n"
-	   " -h             Show this usage message\n"
-	   " -v             Be more verbose, multiple flags can be used\n"
-	   " -r bytes       Specify SEED record length in bytes, default: 4096\n"
-	   " -i             Process each input file individually instead of merged\n"
-	   " -R             Reconstruct time-series across SEED data records\n"
-	   " -f format      Specify ASCII output format (default is 1):\n"
-           "                  1=Header followed by sample value list\n"
-           "                  2=Header followed by time-sample value pairs\n"
+	   " -V           Report program version\n"
+	   " -h           Show this usage message\n"
+	   " -v           Be more verbose, multiple flags can be used\n"
+	   " -r bytes     Specify SEED record length in bytes, default: 4096\n"
+	   " -i           Process each input file individually instead of merged\n"
+           " -tt secs     Specify a time tolerance for continuous traces\n"
+           " -rt diff     Specify a sample rate tolerance for continuous traces\n"
+	   " -f format    Specify ASCII output format (default is 1):\n"
+           "                1=Header followed by sample value list\n"
+           "                2=Header followed by time-sample value pairs\n"
 	   "\n");
 }  /* End of usage() */

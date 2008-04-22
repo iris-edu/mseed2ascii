@@ -1,4 +1,4 @@
-.TH MSEED2ASCII 1 2008/04/21
+.TH MSEED2ASCII 1 2008/04/22
 .SH NAME
 Mini-SEED to ASCII converter
 
@@ -18,10 +18,10 @@ A separate output file is written for each continuous time-series in
 the input data.  Output file names are of the form:
 
 .nf
-"Net.Sta.Loc.Chan.Qual.YYYY,DDD,HH:MM:SS.FFFFFF"
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII"
 
 For example:
-"TA.ELFS..LHZ.R.2006,123,15:36:19.000000"
+"TA.ELFS..LHZ.R.2006-04-22T15:36:19.000000.ASCII"
 .fi
 
 If the input file name is "-" input Mini-SEED records will be read
@@ -51,28 +51,43 @@ written in a single ASCII file.  The intention is to use this option
 when processing large amounts of data in order to keep memory usage
 within reasonable limits.
 
-.IP "-R         "
-Reconstruct contiguous time-series from the independent data segments
-contained in Mini-SEED records.  Without this option each input
-Mini-SEED record will result in a header and sample values, with this
-option a header will only be printed for each separate, contiguous
-time-series segment.
+.IP "-tt \fIsecs\fP"
+Specify a time tolerance for constructing continous trace segments.
+The tolerance is specified in seconds.  The default tolerance is 1/2
+of the sample period.
+
+.IP "-rt \fIdiff\fP"
+Specify a sample rate tolerance for constructing continous trace
+segments.  The tolerance is specified as the difference between two
+sampling rates.  The default tolerance is tested as: (abs(1-sr1/sr2) <
+0.0001).
 
 .IP "-f \fIformat\fP"
-The default output format is binary ASCII with the same byte order as
-the host computer.  This option forces the format for every output
-file:
+The default output format is sample list.  This option applies to all
+output files:
 
 .nf
-1 : Alphanumeric ASCII format
-2 : Binary ASCII format, host byte order (default)
-3 : Binary ASCII format, little-endian
-4 : Binary ASCII format, big-endian
+1 : Sample list format, header includes time stamp of first
+2 : Time-sample pair format, each sample value listed with time stamp
 .fi
 
-.SH AUTHORS
+.SH LIST FILES
+If an input file is prefixed with an '@' character the file is assumed
+to contain a list of file for input.  Multiple list files can be
+combined with multiple input files on the command line.  The last,
+space separated field on each line is assumed to be the file name to
+be read.
+
+An example of a simple text list:
+
+.nf
+TA.ELFS..LHE.R.mseed
+TA.ELFS..LHN.R.mseed
+TA.ELFS..LHZ.R.mseed
+.fi
+
+.SH AUTHOR
 .nf
 Chad Trabant
-Rob Casey
 IRIS Data Management Center
 .fi
