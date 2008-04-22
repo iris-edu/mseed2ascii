@@ -629,5 +629,9 @@ usage (void)
 	   " -f format    Specify ASCII output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
+	   "\n"
+	   "A separate output file is written for each continuous input time-series\n"
+	   "with file names of the form:\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII\n"
 	   "\n");
 }  /* End of usage() */
