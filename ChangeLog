@@ -1,2 +1,6 @@
+2009.156: 0.2
+	- Replace colons (:) with underscores (_) in output file names
+	for Windows (Win32) hosts.
+
 2008.113: 0.1
 	- Initial version.

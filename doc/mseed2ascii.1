@@ -1,4 +1,4 @@
-.TH MSEED2ASCII 1 2008/04/22
+.TH MSEED2ASCII 1 2009/06/05
 .SH NAME
 Mini-SEED to ASCII converter
 
@@ -19,9 +19,17 @@ the input data.  Output file names are of the form:
 
 .nf
 "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII"
+.fi
+
+For Windows computers the colon (:) characters will be replaced with underscore (_) characters:
+
+.nf
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.ASCII" (Windows)
 
 For example:
 "TA.ELFS..LHZ.R.2006-04-22T15:36:19.000000.ASCII"
+
+"TA.ELFS..LHZ.R.2006-04-22T15_36_19.000000.ASCII" (Windows)
 .fi
 
 If the input file name is "-" input Mini-SEED records will be read

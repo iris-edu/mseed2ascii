@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2008.113
+ * modified 2009.156
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.1"
+#define VERSION "0.2"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -143,6 +143,7 @@ writeascii (MSTrace *mst)
   char timestr[50];
   char srcname[50];
   char *samptype;
+  char *cp;
   
   int line, col, cnt, samplesize;
   int lines;
@@ -161,6 +162,12 @@ writeascii (MSTrace *mst)
   /* Generate source name and ISO time string */
   mst_srcname (mst, srcname, 1);
   ms_hptime2isotimestr (mst->starttime, timestr, 1);
+  
+  /* Replace colons with underscores in the filename for Win32 */
+#if defined (WIN32)
+  cp = timestr;
+  while ( cp ) { if ( *cp == ':' ) *cp = '_'; cp++; }
+#endif
   
   /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
   snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.ASCII",
