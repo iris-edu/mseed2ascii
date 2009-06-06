@@ -143,11 +143,14 @@ writeascii (MSTrace *mst)
   char timestr[50];
   char srcname[50];
   char *samptype;
-  char *cp;
   
   int line, col, cnt, samplesize;
   int lines;
   void *sptr;
+
+#if defined (WIN32)
+  char *cp = 0;
+#endif
   
   if ( ! mst )
     return -1;
@@ -166,7 +169,7 @@ writeascii (MSTrace *mst)
   /* Replace colons with underscores in the filename for Win32 */
 #if defined (WIN32)
   cp = timestr;
-  while ( cp ) { if ( *cp == ':' ) *cp = '_'; cp++; }
+  while ( *cp ) { if ( *cp == ':' ) *cp = '_'; cp++; }
 #endif
   
   /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
@@ -640,5 +643,6 @@ usage (void)
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
 	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.ASCII (Windows)\n"
 	   "\n");
 }  /* End of usage() */
