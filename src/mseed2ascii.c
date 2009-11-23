@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2009.156
+ * modified 2009.327
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.2"
+#define VERSION "0.3"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -38,6 +38,7 @@ static int    verbose      = 0;    /* Verbosity level */
 static int    reclen       = -1;   /* Record length, -1 = autodetected */
 static int    indifile     = 0;    /* Individual file processing flag */
 static int    outformat    = 1;    /* Output file format */
+static int    slistcols    = 6;    /* Number of columns for sample list output */
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
 static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
 
@@ -217,7 +218,7 @@ writeascii (MSTrace *mst)
       fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
 	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
       
-      lines = (mst->numsamples / 6) + 1;
+      lines = (mst->numsamples / slistcols) + 1;
       
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
@@ -229,7 +230,7 @@ writeascii (MSTrace *mst)
       else
 	for ( cnt = 0, line = 0; line < lines; line++ )
 	  {
-	    for ( col = 0; col < 6 ; col ++ )
+	    for ( col = 0; col < slistcols ; col ++ )
 	      {
 		if ( cnt < mst->numsamples )
 		  {
@@ -345,6 +346,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-f") == 0)
 	{
 	  outformat = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
+	}
+      else if (strcmp (argvec[optind], "-c") == 0)
+	{
+	  slistcols = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
 	}
       else if (strncmp (argvec[optind], "-", 1) == 0 &&
                strlen (argvec[optind]) > 1 )
@@ -639,10 +644,11 @@ usage (void)
 	   " -f format    Specify ASCII output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
+	   " -c cols      Number of columns for sample value list output (default is %d)\n"
 	   "\n"
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
 	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII\n"
 	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.ASCII (Windows)\n"
-	   "\n");
+	   "\n", slistcols);
 }  /* End of usage() */
