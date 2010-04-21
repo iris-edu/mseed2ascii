@@ -318,9 +318,11 @@ writeascii (MSTrace *mst)
       fprintf (stderr, "Error, unrecognized format: '%d'\n", outformat);
     }
   
-  fclose (ofp);
+  if ( outname == outfile )
+    fclose (ofp);
   
-  fprintf (stderr, "Wrote %d samples to %s\n", mst->numsamples, outname);
+  fprintf (stderr, "Wrote %d samples from %s to %s\n",
+	   mst->numsamples, srcname, outname);
   
   return mst->numsamples;
 }  /* End of writeascii() */
