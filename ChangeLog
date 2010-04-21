@@ -1,6 +1,10 @@
+2010.111:
+	- Add -o option to write all output to a single file, can also write to
+	stdout.
+
 2009.328: 0.3
-	- Add -c option to specify the number of columns used for the
-	sample value list output format, default is 6.
+	- Add -c option to specify the number of columns used for the sample value
+	list output format, default is 6.
 	- Include simple ASCII format documention in the doc directory.
 
 2009.156: 0.2

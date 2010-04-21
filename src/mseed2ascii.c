@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2009.327
+ * modified 2010.111
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.3"
+#define VERSION "0.4dev"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -37,6 +37,8 @@ static void usage (void);
 static int    verbose      = 0;    /* Verbosity level */
 static int    reclen       = -1;   /* Record length, -1 = autodetected */
 static int    indifile     = 0;    /* Individual file processing flag */
+static char  *outputfile   = 0;    /* Output file name for single file output */
+static FILE  *ofp          = 0;    /* Output file pointer */
 static int    outformat    = 1;    /* Output file format */
 static int    slistcols    = 6;    /* Number of columns for sample list output */
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
@@ -66,6 +68,21 @@ main (int argc, char **argv)
   
   /* Init MSTraceGroup */
   mstg = mst_initgroup (mstg);
+  
+  /* Open the output file if specified */
+  if ( outputfile )
+    {
+      if ( strcmp (outputfile, "-") == 0 )
+        {
+          ofp = stdout;
+        }
+      else if ( (ofp = fopen (outputfile, "wb")) == NULL )
+        {
+          fprintf (stderr, "Cannot open output file: %s (%s)\n",
+                   outputfile, strerror(errno));
+          return -1;
+        }
+    }
   
   /* Read input miniSEED files into MSTraceGroup */
   flp = filelist;
@@ -122,6 +139,9 @@ main (int argc, char **argv)
   /* Make sure everything is cleaned up */
   mst_freegroup (&mstg);
   
+  if ( ofp )
+    fclose (ofp);
+
   if ( verbose )
     printf ("Files: %d, Records: %d, Samples: %d\n", totalfiles, totalrecs, totalsamps);
   
@@ -139,8 +159,8 @@ main (int argc, char **argv)
 static int
 writeascii (MSTrace *mst)
 {
-  FILE *ofp;
   char outfile[1024];
+  char *outname = outputfile;
   char timestr[50];
   char srcname[50];
   char *samptype;
@@ -173,11 +193,6 @@ writeascii (MSTrace *mst)
   while ( *cp ) { if ( *cp == ':' ) *cp = '_'; cp++; }
 #endif
   
-  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
-  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.ASCII",
-	    mst->network, mst->station, mst->location, mst->channel,
-	    mst->dataquality, timestr);
-  
   /* Set sample type description */
   if ( mst->sampletype == 'f' || mst-> sampletype == 'd' )
     {
@@ -198,12 +213,23 @@ writeascii (MSTrace *mst)
       return -1;
     }
   
-  /* Open output file */
-  if ( (ofp = fopen (outfile, "wb")) == NULL )
+  /* Generate and open output file name if single file not being used */
+  if ( ! ofp )
     {
-      fprintf (stderr, "Cannot open output file: %s (%s)\n",
-	       outfile, strerror(errno));
-      return -1;
+      /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
+      snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.ASCII",
+		mst->network, mst->station, mst->location, mst->channel,
+		mst->dataquality, timestr);
+      
+      /* Open output file */
+      if ( (ofp = fopen (outfile, "wb")) == NULL )
+	{
+	  fprintf (stderr, "Cannot open output file: %s (%s)\n",
+		   outfile, strerror(errno));
+	  return -1;
+	}
+      
+      outname = outfile;
     }
   
   /* Header format:
@@ -212,7 +238,7 @@ writeascii (MSTrace *mst)
   if ( outformat == 1 || mst->sampletype == 'a' )
     {
       if ( verbose > 1 )
-	fprintf (stderr, "Writing ASCII sample list file: %s\n", outfile);
+	fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
       
       /* Print header line */
       fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
@@ -257,7 +283,7 @@ writeascii (MSTrace *mst)
       hptime_t hpdelta = ( mst->samprate ) ? (hptime_t) (HPTMODULUS / mst->samprate) : 0;
       
       if ( verbose > 1 )
-	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outfile);
+	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
       
       /* Print header line */
       fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, TSPAIR, %s, Counts\n",
@@ -293,7 +319,7 @@ writeascii (MSTrace *mst)
   
   fclose (ofp);
   
-  fprintf (stderr, "Wrote %d samples to %s\n", mst->numsamples, outfile);
+  fprintf (stderr, "Wrote %d samples to %s\n", mst->numsamples, outname);
   
   return mst->numsamples;
 }  /* End of writeascii() */
@@ -342,6 +368,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-rt") == 0)
         {
           sampratetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
+        }
+      else if (strcmp (argvec[optind], "-o") == 0)
+        {
+          outputfile = getoptval(argcount, argvec, optind++, 1);
         }
       else if (strcmp (argvec[optind], "-f") == 0)
 	{
@@ -641,6 +671,7 @@ usage (void)
 	   " -i           Process each input file individually instead of merged\n"
            " -tt secs     Specify a time tolerance for continuous traces\n"
            " -rt diff     Specify a sample rate tolerance for continuous traces\n"
+           " -o outfile   Specify the output file, default is segment files\n"
 	   " -f format    Specify ASCII output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
