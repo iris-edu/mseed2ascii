@@ -1,4 +1,4 @@
-.TH MSEED2ASCII 1 2009/11/24
+.TH MSEED2ASCII 1 2010/04/21
 .SH NAME
 Mini-SEED to ASCII converter
 
@@ -18,18 +18,18 @@ A separate output file is written for each continuous time-series in
 the input data.  Output file names are of the form:
 
 .nf
-"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII"
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.txt"
 .fi
 
 For Windows computers the colon (:) characters will be replaced with underscore (_) characters:
 
 .nf
-"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.ASCII" (Windows)
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.txt" (Windows)
 
 For example:
-"TA.ELFS..LHZ.R.2006-04-22T15:36:19.000000.ASCII"
+"TA.ELFS..LHZ.R.2006-04-22T15:36:19.000000.txt"
 
-"TA.ELFS..LHZ.R.2006-04-22T15_36_19.000000.ASCII" (Windows)
+"TA.ELFS..LHZ.R.2006-04-22T15_36_19.000000.txt" (Windows)
 .fi
 
 If the input file name is "-" input Mini-SEED records will be read
@@ -70,6 +70,13 @@ segments.  The tolerance is specified as the difference between two
 sampling rates.  The default tolerance is tested as: (abs(1-sr1/sr2) <
 0.0001).
 
+.IP "-o \fIoutfile\fP"
+Write all ASCII output to \fIoutfile\fP, if \fIoutfile\fP is a single
+dash (-) then all output will go to stdout.  If this option is not
+specified each contiguous segment is written to a separate file.  All
+diagnostic output from the program is written to stderr and should
+never get mixed with data going to stdout.
+
 .IP "-f \fIformat\fP"
 The default output format is sample list.  This option applies to all
 output files:
@@ -82,6 +89,10 @@ output files:
 .IP "-c \fIcols\fP"
 Specify the number of columns to use for sample list formatted output,
 default is 6 columns.
+
+.IP "-u \fIunits\fP"
+Specify the units string that should be included in the ASCII output
+headers, the default is "Counts".
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed

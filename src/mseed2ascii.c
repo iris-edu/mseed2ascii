@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.4dev"
+#define VERSION "0.4"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -37,6 +37,7 @@ static void usage (void);
 static int    verbose      = 0;    /* Verbosity level */
 static int    reclen       = -1;   /* Record length, -1 = autodetected */
 static int    indifile     = 0;    /* Individual file processing flag */
+static char  *unitsstr     = "Counts"; /* Units to write into output headers */
 static char  *outputfile   = 0;    /* Output file name for single file output */
 static FILE  *ofp          = 0;    /* Output file pointer */
 static int    outformat    = 1;    /* Output file format */
@@ -216,8 +217,8 @@ writeascii (MSTrace *mst)
   /* Generate and open output file name if single file not being used */
   if ( ! ofp )
     {
-      /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.ASCII */
-      snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.ASCII",
+      /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.txt */
+      snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.txt",
 		mst->network, mst->station, mst->location, mst->channel,
 		mst->dataquality, timestr);
       
@@ -241,8 +242,8 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
       
       /* Print header line */
-      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, Counts\n",
-	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
+      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, %s\n",
+	       srcname, mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
       
       lines = (mst->numsamples / slistcols) + 1;
       
@@ -286,8 +287,8 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
       
       /* Print header line */
-      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, TSPAIR, %s, Counts\n",
-	       srcname, mst->numsamples, mst->samprate, timestr, samptype);
+      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, TSPAIR, %s, %s\n",
+	       srcname, mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
       
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
@@ -380,6 +381,10 @@ parameter_proc (int argcount, char **argvec)
       else if (strcmp (argvec[optind], "-c") == 0)
 	{
 	  slistcols = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
+	}
+      else if (strcmp (argvec[optind], "-u") == 0)
+	{
+	  unitsstr = getoptval(argcount, argvec, optind++, 0);
 	}
       else if (strncmp (argvec[optind], "-", 1) == 0 &&
                strlen (argvec[optind]) > 1 )
@@ -676,10 +681,11 @@ usage (void)
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
 	   " -c cols      Number of columns for sample value list output (default is %d)\n"
+	   " -u units     Specify units string for headers, default is 'Counts'\n"
 	   "\n"
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
-	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.ASCII\n"
-	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.ASCII (Windows)\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.txt\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.txt (Windows)\n"
 	   "\n", slistcols);
 }  /* End of usage() */

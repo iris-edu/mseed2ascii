@@ -1,6 +1,7 @@
 2010.111:
-	- Add -o option to write all output to a single file, can also write to
-	stdout.
+	- Add -o option to write all output to a single file, also to stdout.
+	- Add -u option to specify units string for output headers.
+	- Change default file output extension to ".txt".
 
 2009.328: 0.3
 	- Add -c option to specify the number of columns used for the sample value
