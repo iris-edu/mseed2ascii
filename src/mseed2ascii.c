@@ -264,13 +264,26 @@ writeascii (MSTrace *mst)
 		    sptr = (char*)mst->datasamples + (cnt * samplesize);
 		    
 		    if ( mst->sampletype == 'i' )
-		      fprintf (ofp, "%-10d%s", *(int32_t *)sptr, (col == slistcols)?"":"  ");
-		    
+		      {
+			if ( col != slistcols )
+			  fprintf (ofp, "%-10d  ", *(int32_t *)sptr);
+			else
+			  fprintf (ofp, "%d", *(int32_t *)sptr);
+		      }
 		    else if ( mst->sampletype == 'f' )
-		      fprintf (ofp, "%-10.8g%s", *(float *)sptr, (col == slistcols)?"":"  ");
-		    
+		      {
+			if ( col != slistcols )
+			  fprintf (ofp, "%-10.8g  ", *(float *)sptr);
+			else
+			  fprintf (ofp, "%.8g", *(float *)sptr);
+		      }
 		    else if ( mst->sampletype == 'd' )
-		      fprintf (ofp, "%-10.10g%s", *(double *)sptr, (col == slistcols)?"":"  ");
+		      {
+			if ( col != slistcols )
+			  fprintf (ofp, "%-10.10g  ", *(double *)sptr);
+			else
+			  fprintf (ofp, "%.10g", *(double *)sptr);
+		      }
 		    
 		    cnt++;
 		  }
