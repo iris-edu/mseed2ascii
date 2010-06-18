@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2010.111
+ * modified 2010.169
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "0.4"
+#define VERSION "0.5"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -41,7 +41,7 @@ static char  *unitsstr     = "Counts"; /* Units to write into output headers */
 static char  *outputfile   = 0;    /* Output file name for single file output */
 static FILE  *ofp          = 0;    /* Output file pointer */
 static int    outformat    = 1;    /* Output file format */
-static int    slistcols    = 6;    /* Number of columns for sample list output */
+static int    slistcols    = 1;    /* Number of columns for sample list output */
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
 static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
 
@@ -245,7 +245,7 @@ writeascii (MSTrace *mst)
       fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, %s\n",
 	       srcname, mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
       
-      lines = (mst->numsamples / slistcols) + 1;
+      lines = (mst->numsamples / slistcols) + ((slistcols == 1) ? 0 : 1);
       
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
@@ -257,20 +257,20 @@ writeascii (MSTrace *mst)
       else
 	for ( cnt = 0, line = 0; line < lines; line++ )
 	  {
-	    for ( col = 0; col < slistcols ; col ++ )
+	    for ( col = 1; col <= slistcols ; col ++ )
 	      {
 		if ( cnt < mst->numsamples )
 		  {
 		    sptr = (char*)mst->datasamples + (cnt * samplesize);
 		    
 		    if ( mst->sampletype == 'i' )
-		      fprintf (ofp, "%10d  ", *(int32_t *)sptr);
+		      fprintf (ofp, "%-10d%s", *(int32_t *)sptr, (col == slistcols)?"":"  ");
 		    
 		    else if ( mst->sampletype == 'f' )
-		      fprintf (ofp, "%10.8g  ", *(float *)sptr);
+		      fprintf (ofp, "%-10.8g%s", *(float *)sptr, (col == slistcols)?"":"  ");
 		    
 		    else if ( mst->sampletype == 'd' )
-		      fprintf (ofp, "%10.10g  ", *(double *)sptr);
+		      fprintf (ofp, "%-10.10g%s", *(double *)sptr, (col == slistcols)?"":"  ");
 		    
 		    cnt++;
 		  }

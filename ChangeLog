@@ -1,4 +1,8 @@
-2010.111:
+2010.169: 0.5
+	- Change default columns for SLIST output to 1.
+	- Cleanup SLIST output to not include spaces at end of lines..
+
+2010.111: 0.4
 	- Add -o option to write all output to a single file, also to stdout.
 	- Add -u option to specify units string for output headers.
 	- Change default file output extension to ".txt".
