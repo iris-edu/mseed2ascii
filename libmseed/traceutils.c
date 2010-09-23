@@ -5,14 +5,17 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified: 2007.228
+ * modified: 2008.320
  ***************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "libmseed.h"
+
+static int mst_groupsort_cmp ( MSTrace *mst1, MSTrace *mst2, flag quality );
 
 
 /***************************************************************************
@@ -161,8 +164,8 @@ mst_freegroup ( MSTraceGroup **ppmstg )
 /***************************************************************************
  * mst_findmatch:
  *
- * Traverse the MSTrace chain starting at 'mst' until a MSTrace is
- * found that matches the given name identifiers.  If the dataquality
+ * Traverse the MSTrace chain starting at 'startmst' until a MSTrace
+ * is found that matches the given name identifiers.  If the dataquality
  * byte is not 0 it must also match.
  *
  * Return a pointer a matching MSTrace otherwise 0 if no match found.
@@ -171,6 +174,8 @@ MSTrace *
 mst_findmatch ( MSTrace *startmst, char dataquality,
 		char *network, char *station, char *location, char *channel )
 {
+  int idx;
+  
   if ( ! startmst )
     return 0;
   
@@ -181,15 +186,62 @@ mst_findmatch ( MSTrace *startmst, char dataquality,
 	  startmst = startmst->next;
 	  continue;
 	}
+
+      /* Compare network */
+      idx = 0;
+      while ( network[idx] == startmst->network[idx] )
+	{
+	  if ( network[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( network[idx] != '\0' || startmst->network[idx] != '\0' )
+	{
+	  startmst = startmst->next;
+	  continue;
+	}
+      /* Compare station */
+      idx = 0;
+      while ( station[idx] == startmst->station[idx] )
+	{
+	  if ( station[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( station[idx] != '\0' || startmst->station[idx] != '\0' )
+	{
+	  startmst = startmst->next;
+	  continue;
+	}
+      /* Compare location */
+      idx = 0;
+      while ( location[idx] == startmst->location[idx] )
+	{
+	  if ( location[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( location[idx] != '\0' || startmst->location[idx] != '\0' )
+	{
+	  startmst = startmst->next;
+	  continue;
+	}
+      /* Compare channel */
+      idx = 0;
+      while ( channel[idx] == startmst->channel[idx] )
+	{
+	  if ( channel[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( channel[idx] != '\0' || startmst->channel[idx] != '\0' )
+	{
+	  startmst = startmst->next;
+	  continue;
+	}
       
-      /* Check if this trace matches the record */
-      if ( ! strcmp (network, startmst->network) &&
-	   ! strcmp (station, startmst->station) &&
-	   ! strcmp (location, startmst->location) &&
-	   ! strcmp (channel, startmst->channel) )
-	break;
-      
-      startmst = startmst->next;
+      /* A match was found if we made it this far */
+      break;
     }
   
   return startmst;
@@ -226,17 +278,67 @@ mst_findadjacent ( MSTraceGroup *mstg, flag *whence, char dataquality,
 		   hptime_t starttime, hptime_t endtime, double timetol )
 {
   MSTrace *mst = 0;
-  double pregap, postgap, delta;
+  hptime_t pregap;
+  hptime_t postgap;
+  hptime_t hpdelta;
+  hptime_t hptimetol = 0;
+  hptime_t nhptimetol = 0;
+  int idx;
   
   if ( ! mstg )
     return 0;
   
   *whence = 0;
   
+  /* Calculate high-precision sample period */
+  hpdelta = ( samprate ) ? (HPTMODULUS / samprate) : 0.0;
+  
+  /* Calculate high-precision time tolerance */
+  if ( timetol == -1.0 )
+    hptimetol = 0.5 * hpdelta;   /* Default time tolerance is 1/2 sample period */
+  else if ( timetol >= 0.0 )
+    hptimetol = (hptime_t) (timetol * HPTMODULUS);
+  
+  nhptimetol = ( hptimetol ) ? -hptimetol : 0;
+  
   mst = mstg->traces;
   
-  while ( (mst = mst_findmatch (mst, dataquality, network, station, location, channel)) )
+  while ( mst )
     {
+      /* post/pregap are negative when the record overlaps the trace
+       * segment and positive when there is a time gap. */
+      postgap = starttime - mst->endtime - hpdelta;
+      
+      pregap = mst->starttime - endtime - hpdelta;
+      
+      /* If not checking the time tolerance decide if beginning or end is a better fit */
+      if ( timetol == -2.0 )
+	{
+	  if ( ms_dabs(postgap) < ms_dabs(pregap) )
+	    *whence = 1;
+	  else
+	    *whence = 2;
+	}
+      else
+	{
+	  if ( postgap <= hptimetol && postgap >= nhptimetol )
+	    {
+              /* Span fits right at the end of the trace */
+	      *whence = 1;
+	    }
+	  else if ( pregap <= hptimetol && pregap >= nhptimetol )
+	    {
+              /* Span fits right at the beginning of the trace */
+	      *whence = 2;
+	    }
+          else
+            {
+	      /* Span does not fit with this Trace */
+	      mst = mst->next;
+	      continue;
+            }
+	}
+      
       /* Perform samprate tolerance check if requested */
       if ( sampratetol != -2.0 )
 	{ 
@@ -256,47 +358,71 @@ mst_findadjacent ( MSTraceGroup *mstg, flag *whence, char dataquality,
 	      continue;
 	    }
 	}
-      
-      /* post/pregap are negative when the record overlaps the trace
-       * segment and positive when there is a time gap.
-       */
-      delta = ( samprate ) ? (1.0 / samprate) : 0.0;
-      
-      postgap = ((double)(starttime - mst->endtime)/HPTMODULUS) - delta;
-      
-      pregap = ((double)(mst->starttime - endtime)/HPTMODULUS) - delta;
-      
-      /* If not checking the time tolerance decide if beginning or end is a better fit */
-      if ( timetol == -2.0 )
+
+       /* Compare data qualities */
+       if ( dataquality && dataquality != mst->dataquality )
 	{
-	  if ( ms_dabs(postgap) < ms_dabs(pregap) )
-	    *whence = 1;
-	  else
-	    *whence = 2;
-	  
-	  break;
+	  mst = mst->next;
+	  continue;
 	}
-      else
+
+      /* Compare network */
+      idx = 0;
+      while ( network[idx] == mst->network[idx] )
 	{
-	  /* Calculate default time tolerance (1/2 sample period) if needed */
-	  if ( timetol == -1.0 )
-	    timetol = 0.5 * delta;
-	  
-	  if ( ms_dabs(postgap) <= timetol ) /* Span fits right at the end of the trace */
-	    {
-	      *whence = 1;
-	      break;
-	    }
-	  else if ( ms_dabs(pregap) <= timetol ) /* Span fits right at the beginning of the trace */
-	    {
-	      *whence = 2;
-	      break;
-	    }
+	  if ( network[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( network[idx] != '\0' || mst->network[idx] != '\0' )
+	{
+	  mst = mst->next;
+	  continue;
+	}
+      /* Compare station */
+      idx = 0;
+      while ( station[idx] == mst->station[idx] )
+	{
+	  if ( station[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( station[idx] != '\0' || mst->station[idx] != '\0' )
+	{
+	  mst = mst->next;
+	  continue;
+	}
+      /* Compare location */
+      idx = 0;
+      while ( location[idx] == mst->location[idx] )
+	{
+	  if ( location[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( location[idx] != '\0' || mst->location[idx] != '\0' )
+	{
+	  mst = mst->next;
+	  continue;
+	}
+      /* Compare channel */
+      idx = 0;
+      while ( channel[idx] == mst->channel[idx] )
+	{
+	  if ( channel[idx] == '\0' )
+	    break;
+	  idx++;
+	}
+      if ( channel[idx] != '\0' || mst->channel[idx] != '\0' )
+	{
+	  mst = mst->next;
+	  continue;
 	}
       
-      mst = mst->next;
+      /* A match was found if we made it this far */
+      break;
     }
-  
+ 
   return mst;
 } /* End of mst_findadjacent() */
 
@@ -806,108 +932,164 @@ mst_groupheal ( MSTraceGroup *mstg, double timetol, double sampratetol )
 /***************************************************************************
  * mst_groupsort:
  *
- * Sort a MSTraceGroup first on source name, then on start time, then
- * on descending endtime (longest trace first) and finally sample
- * rate.  The "bubble sort" algorithm herein is not terribly
- * efficient.
+ * Sort a MSTraceGroup using a mergesort algorithm.  MSTrace entries
+ * are compared using the mst_groupsort_cmp() function.
+ *
+ * The mergesort implementation was inspired by the listsort function
+ * published and copyright 2001 by Simon Tatham.
  *
  * Return 0 on success and -1 on error.
  ***************************************************************************/
 int
 mst_groupsort ( MSTraceGroup *mstg, flag quality )
 {
-  MSTrace *mst, *pmst;
-  char src1[50], src2[50];
-  int swap;
-  int swapped;
-  int strcmpval;
+  MSTrace *p, *q, *e, *top, *tail;
+  int nmerges;
+  int insize, psize, qsize, i;
   
   if ( ! mstg )
     return -1;
   
   if ( ! mstg->traces )
     return 0;
-
-  /* Bubble sort:
-   * Loop over the MSTrace chain until no more entries are swapped */
-  do
+  
+  top = mstg->traces;
+  insize = 1;
+  
+  for (;;)
     {
-      swapped = 0;
+      p = top;
+      top = NULL;
+      tail = NULL;
       
-      mst = mstg->traces;
-      pmst = mst;
+      nmerges = 0;  /* count number of merges we do in this pass */
       
-      while ( mst->next ) {
-	swap = 0;
-	
-	mst_srcname (mst, src1, quality);
-	mst_srcname (mst->next, src2, quality);
-	
-	strcmpval = strcmp (src1, src2);
-	
-	/* If the source names do not match make sure the "greater" string is 2nd,
-	 * otherwise, if source names do match, make sure the later start time is 2nd
-	 * otherwise, if start times match, make sure the earlier end time is 2nd
-	 * otherwise, if end times match, make sure the highest sample rate is 2nd
-	 */
-	if ( strcmpval > 0 )
-	  {
-	    swap = 1;
-	  }
-	else if ( strcmpval == 0 )
-	  {
-	    if ( mst->starttime > mst->next->starttime )
-	      {
-		swap = 1;
-	      }
-	    else if ( mst->starttime == mst->next->starttime )
-	      {
-		if ( mst->endtime < mst->next->endtime )
-		  {
-		    swap = 1;
-		  }
-		else if ( mst->endtime == mst->next->endtime )
-		  {
-		    if ( ! MS_ISRATETOLERABLE (mst->samprate, mst->next->samprate) &&
-			 mst->samprate > mst->next->samprate )
-		      {
-			swap = 1;
-		      }
-		  }
-	      }
-	  }
-	
-	/* If a swap condition was found swap the entries */
-	if ( swap )
-	  {
-	    swapped++;
-	    
-	    if ( mst == mstg->traces && pmst == mstg->traces )
-	      {
-		mstg->traces = mst->next;
-	      }
-	    else
-	      {
-		pmst->next = mst->next;
-	      }
-	    
-	    pmst = mst->next;
-	    mst->next = mst->next->next;
-	    pmst->next = mst;
-	  }
-	else
-	  {
-	    pmst = mst;
-	    mst = mst->next;
-	  }
-	
-	if ( ! mst )
-	  break;
-      }
-    } while ( swapped );
+      while ( p )
+        {
+          nmerges++;  /* there exists a merge to be done */
+	  
+          /* step `insize' places along from p */
+          q = p;
+          psize = 0;
+          for (i = 0; i < insize; i++)
+            {
+              psize++;
+              q = q->next;
+              if ( ! q )
+                break;
+            }
+          
+          /* if q hasn't fallen off end, we have two lists to merge */
+          qsize = insize;
+	  
+          /* now we have two lists; merge them */
+          while ( psize > 0 || (qsize > 0 && q) )
+            {
+              /* decide whether next element of merge comes from p or q */
+              if ( psize == 0 )
+                {  /* p is empty; e must come from q. */
+                  e = q; q = q->next; qsize--;
+                }
+              else if ( qsize == 0 || ! q )
+                {  /* q is empty; e must come from p. */
+                  e = p; p = p->next; psize--;
+                }
+              else if ( mst_groupsort_cmp (p, q, quality) <= 0 )
+                {  /* First element of p is lower (or same), e must come from p. */
+                  e = p; p = p->next; psize--;
+                }
+              else
+                {  /* First element of q is lower; e must come from q. */
+                  e = q; q = q->next; qsize--;
+                }
+	      
+              /* add the next element to the merged list */
+              if ( tail )
+                tail->next = e;
+              else
+                top = e;
+	      
+              tail = e;
+            }
+	  
+          /* now p has stepped `insize' places along, and q has too */
+          p = q;
+        }
+      
+      tail->next = NULL;
+      
+      /* If we have done only one merge, we're finished. */
+      if ( nmerges <= 1 )   /* allow for nmerges==0, the empty list case */
+        {
+          mstg->traces = top;
+          
+	  return 0;
+        }
+      
+      /* Otherwise repeat, merging lists twice the size */
+      insize *= 2;
+    }
+} /* End of mst_groupsort() */
+
+
+/***************************************************************************
+ * mst_groupsort_cmp:
+ *
+ * Compare two MSTrace entities for the purposes of sorting a
+ * MSTraceGroup.  Criteria for MSTrace comparison are (in order of
+ * testing): source name, start time, descending endtime (longest
+ * trace first) and sample rate.
+ *
+ * Return 1 if mst1 is "greater" than mst2, otherwise return 0.
+ ***************************************************************************/
+static int
+mst_groupsort_cmp ( MSTrace *mst1, MSTrace *mst2, flag quality )
+{
+  char src1[50], src2[50];
+  int strcmpval;
+  
+  if ( ! mst1 || ! mst2 )
+    return -1;
+  
+  mst_srcname (mst1, src1, quality);
+  mst_srcname (mst2, src2, quality);
+  
+  strcmpval = strcmp (src1, src2);
+  
+  /* If the source names do not match make sure the "greater" string is 2nd,
+   * otherwise, if source names do match, make sure the later start time is 2nd
+   * otherwise, if start times match, make sure the earlier end time is 2nd
+   * otherwise, if end times match, make sure the highest sample rate is 2nd
+   */
+  if ( strcmpval > 0 )
+    {
+      return 1;
+    }
+  else if ( strcmpval == 0 )
+    {
+      if ( mst1->starttime > mst2->starttime )
+	{
+	  return 1;
+	}
+      else if ( mst1->starttime == mst2->starttime )
+	{
+	  if ( mst1->endtime < mst2->endtime )
+	    {
+	      return 1;
+	    }
+	  else if ( mst1->endtime == mst2->endtime )
+	    {
+	      if ( ! MS_ISRATETOLERABLE (mst1->samprate, mst2->samprate) &&
+		   mst1->samprate > mst2->samprate )
+		{
+		  return 1;
+		}
+	    }
+	}
+    }
   
   return 0;
-} /* End of mst_groupsort() */
+} /* End of mst_groupsort_cmp() */
 
 
 /***************************************************************************
@@ -924,18 +1106,32 @@ mst_groupsort ( MSTraceGroup *mstg, flag quality )
 char *
 mst_srcname (MSTrace *mst, char *srcname, flag quality)
 {
-  if ( ! mst )
+  char *src = srcname;
+  char *cp = srcname;
+  
+  if ( ! mst || ! srcname )
     return NULL;
   
   /* Build the source name string */
-  if ( quality == 1 && mst->dataquality )
-    sprintf (srcname, "%s_%s_%s_%s_%c",
-	     mst->network, mst->station,
-	     mst->location, mst->channel, mst->dataquality);
-  else
-    sprintf (srcname, "%s_%s_%s_%s",
-	     mst->network, mst->station,
-	     mst->location, mst->channel);
+  cp = mst->network;
+  while ( *cp ) { *src++ = *cp++; }
+  *src++ = '_';
+  cp = mst->station;
+  while ( *cp ) { *src++ = *cp++; }  
+  *src++ = '_';
+  cp = mst->location;
+  while ( *cp ) { *src++ = *cp++; }  
+  *src++ = '_';
+  cp = mst->channel;
+  while ( *cp ) { *src++ = *cp++; }  
+  
+  if ( quality && mst->dataquality )
+    {
+      *src++ = '_';
+      *src++ = mst->dataquality;
+    }
+  
+  *src = '\0';
   
   return srcname;
 } /* End of mst_srcname() */
@@ -1084,9 +1280,63 @@ mst_printtracelist ( MSTraceGroup *mstg, flag timeformat,
     ms_log (2, "mst_printtracelist(): number of traces in trace group is inconsistent\n");
   
   if ( details > 0 )
-    ms_log (0, "Total: %d trace(s)\n", tracecnt);
+    ms_log (0, "Total: %d trace segment(s)\n", tracecnt);
   
 }  /* End of mst_printtracelist() */
+
+
+/***************************************************************************
+ * mst_printsynclist:
+ *
+ * Print SYNC trace list summary information for the specified MSTraceGroup.
+ *
+ * The SYNC header line will be created using the supplied dccid, if
+ * the pointer is NULL the string "DCC" will be used instead.
+ *
+ * If the subsecond flag is true the segment start and end times will
+ * include subsecond precision, otherwise they will be truncated to
+ * integer seconds.
+ *
+ ***************************************************************************/
+void
+mst_printsynclist ( MSTraceGroup *mstg, char *dccid, flag subsecond )
+{
+  MSTrace *mst = 0;
+  char stime[30];
+  char etime[30];
+  char yearday[10];
+  time_t now;
+  struct tm *nt;
+  
+  if ( ! mstg )
+    {
+      return;
+    }
+  
+  /* Generate current time stamp */
+  now = time (NULL);
+  nt = localtime ( &now ); nt->tm_year += 1900; nt->tm_yday += 1;
+  snprintf ( yearday, sizeof(yearday), "%04d,%03d", nt->tm_year, nt->tm_yday);
+  
+  /* Print SYNC header line */
+  ms_log (0, "%s|%s\n", (dccid)?dccid:"DCC", yearday);
+  
+  /* Loope through trace list */
+  mst = mstg->traces;
+  while ( mst )
+    {
+      ms_hptime2seedtimestr (mst->starttime, stime, subsecond);
+      ms_hptime2seedtimestr (mst->endtime, etime, subsecond);
+      
+      /* Print SYNC line */
+      ms_log (0, "%s|%s|%s|%s|%s|%s||%.2g|%d|||||||%s\n",
+	      mst->network, mst->station, mst->location, mst->channel,
+	      stime, etime, mst->samprate, mst->samplecnt,
+	      yearday);
+      
+      mst = mst->next;
+    }
+}  /* End of mst_printsynclist() */
 
 
 /***************************************************************************

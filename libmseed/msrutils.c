@@ -3,9 +3,11 @@
  *
  * Generic routines to operate on Mini-SEED records.
  *
- * Written by Chad Trabant, ORFEUS/EC-Project MEREDIAN
+ * Written by Chad Trabant
+ *   ORFEUS/EC-Project MEREDIAN
+ *   IRIS Data Management Center
  *
- * modified: 2007.228
+ * modified: 2009.175
  ***************************************************************************/
 
 #include <stdio.h>
@@ -14,9 +16,6 @@
 #include <time.h>
 
 #include "libmseed.h"
-
-/* A simple bitwise AND test to return 0 or 1 */
-#define bit(x,y) (x&y)?1:0
 
 
 /***************************************************************************
@@ -211,6 +210,7 @@ msr_addblockette (MSRecord *msr, char *blktdata, int length, int blkttype,
       blkt->next = 0;
     }
   
+  blkt->blktoffset = 0;
   blkt->blkt_type = blkttype;
   blkt->next_blkt = 0;
   
@@ -498,27 +498,10 @@ msr_samprate (MSRecord *msr)
 double
 msr_nomsamprate (MSRecord *msr)
 {
-  double samprate = 0.0;
-  int factor;
-  int multiplier;
-  
   if ( ! msr )
     return -1.0;
   
-  /* Calculate the nominal sample rate */
-  factor = msr->fsdh->samprate_fact;
-  multiplier = msr->fsdh->samprate_mult;
-  
-  if ( factor > 0 )
-    samprate = (double) factor;
-  else if ( factor < 0 )
-    samprate = -1.0 / (double) factor;
-  if ( multiplier > 0 )
-    samprate = samprate * (double) multiplier;
-  else if ( multiplier < 0 )
-    samprate = -1.0 * (samprate / (double) multiplier);
-  
-  return samprate;
+  return ms_nomsamprate (msr->fsdh->samprate_fact, msr->fsdh->samprate_mult);
 } /* End of msr_nomsamprate() */
 
 
@@ -623,20 +606,32 @@ msr_endtime (MSRecord *msr)
 char *
 msr_srcname (MSRecord *msr, char *srcname, flag quality)
 {
-  if ( msr == NULL )
+  char *src = srcname;
+  char *cp = srcname;
+  
+  if ( ! msr || ! srcname )
     return NULL;
   
-  /* Build the source name string including the quality indicator*/
-  if ( quality )
-    sprintf (srcname, "%s_%s_%s_%s_%c",
-	     msr->network, msr->station,
-	     msr->location, msr->channel, msr->dataquality);
+  /* Build the source name string */
+  cp = msr->network;
+  while ( *cp ) { *src++ = *cp++; }
+  *src++ = '_';
+  cp = msr->station;
+  while ( *cp ) { *src++ = *cp++; }  
+  *src++ = '_';
+  cp = msr->location;
+  while ( *cp ) { *src++ = *cp++; }  
+  *src++ = '_';
+  cp = msr->channel;
+  while ( *cp ) { *src++ = *cp++; }  
   
-  /* Build the source name string without the quality indicator*/
-  else
-    sprintf (srcname, "%s_%s_%s_%s",
-	     msr->network, msr->station,
-	     msr->location, msr->channel);
+  if ( quality )
+    {
+      *src++ = '_';
+      *src++ = msr->dataquality;
+    }
+  
+  *src = '\0';
   
   return srcname;
 } /* End of msr_srcname() */
