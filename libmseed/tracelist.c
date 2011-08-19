@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified: 2010.047
+ * modified: 2011.129
  ***************************************************************************/
 
 #include <stdio.h>
@@ -301,11 +301,11 @@ mstl_addmsr ( MSTraceList *mstl, MSRecord *msr, flag dataquality,
   else
     {
       /* Calculate high-precision sample period */
-      hpdelta = ( msr->samprate ) ? (HPTMODULUS / msr->samprate) : 0.0;
+      hpdelta = (hptime_t) (( msr->samprate ) ? (HPTMODULUS / msr->samprate) : 0.0);
       
       /* Calculate high-precision time tolerance */
       if ( timetol == -1.0 )
-	hptimetol = 0.5 * hpdelta;   /* Default time tolerance is 1/2 sample period */
+	hptimetol = (hptime_t) (0.5 * hpdelta);   /* Default time tolerance is 1/2 sample period */
       else if ( timetol >= 0.0 )
 	hptimetol = (hptime_t) (timetol * HPTMODULUS);
       
@@ -669,7 +669,7 @@ mstl_addmsrtoseg (MSTraceSeg *seg, MSRecord *msr, hptime_t endtime, flag whence)
   
   if ( ! seg || ! msr )
     return 0;
-  
+
   /* Allocate more memory for data samples if included */
   if ( msr->datasamples && msr->numsamples > 0 )
     {
@@ -691,6 +691,8 @@ mstl_addmsrtoseg (MSTraceSeg *seg, MSRecord *msr, hptime_t endtime, flag whence)
 	  ms_log (2, "mstl_addmsrtoseg(): Error allocating memory\n");
 	  return 0;
 	}
+      
+      seg->datasamples = newdatasamples;
     }
   
   /* Add coverage to end of segment */
@@ -774,6 +776,8 @@ mstl_addsegtoseg (MSTraceSeg *seg1, MSTraceSeg *seg2)
 	  ms_log (2, "mstl_addsegtoseg(): Error allocating memory\n");
 	  return 0;
 	}
+      
+      seg1->datasamples = newdatasamples;
     }
   
   /* Add seg2 coverage to end of seg1 */
@@ -907,12 +911,12 @@ mstl_printtracelist ( MSTraceList *mstl, flag timeformat,
 		ms_log (0, "%-17s %-24s %-24s %-4s\n",
 			id->srcname, stime, etime, gapstr);
 	      else
-		ms_log (0, "%-17s %-24s %-24s %-s %-3.3g %-d\n",
-			id->srcname, stime, etime, gapstr, seg->samprate, seg->samplecnt);
+		ms_log (0, "%-17s %-24s %-24s %-s %-3.3g %-lld\n",
+			id->srcname, stime, etime, gapstr, seg->samprate, (long long int)seg->samplecnt);
 	    }
 	  else if ( details > 0 && gaps <= 0 )
-	    ms_log (0, "%-17s %-24s %-24s %-3.3g %-d\n",
-		    id->srcname, stime, etime, seg->samprate, seg->samplecnt);
+	    ms_log (0, "%-17s %-24s %-24s %-3.3g %-lld\n",
+		    id->srcname, stime, etime, seg->samprate, (long long int)seg->samplecnt);
 	  else
 	    ms_log (0, "%-17s %-24s %-24s\n", id->srcname, stime, etime);
 	  
@@ -983,9 +987,9 @@ mstl_printsynclist ( MSTraceList *mstl, char *dccid, flag subsecond )
 	  ms_hptime2seedtimestr (seg->endtime, endtime, subsecond);
 	  
 	  /* Print SYNC line */
-	  ms_log (0, "%s|%s|%s|%s|%s|%s||%.2g|%d|||||||%s\n",
+	  ms_log (0, "%s|%s|%s|%s|%s|%s||%.2g|%lld|||||||%s\n",
 		  id->network, id->station, id->location, id->channel,
-		  starttime, endtime, seg->samprate, seg->samplecnt,
+		  starttime, endtime, seg->samprate, (long long int)seg->samplecnt,
 		  yearday);
 	  
 	  seg = seg->next;

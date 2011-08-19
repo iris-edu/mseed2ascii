@@ -7,7 +7,7 @@
  *   ORFEUS/EC-Project MEREDIAN
  *   IRIS Data Management Center
  *
- * modified: 2009.175
+ * modified: 2011.129
  ***************************************************************************/
 
 #include <stdio.h>
@@ -308,7 +308,7 @@ msr_normalize_header ( MSRecord *msr, flag verbose )
       
       if ( cur_blkt->blkt_type == 100 && msr->Blkt100 )
 	{
-	  msr->Blkt100->samprate = msr->samprate;
+	  msr->Blkt100->samprate = (float)msr->samprate;
 	  offset += sizeof (struct blkt_100_s);
 	}
       else if ( cur_blkt->blkt_type == 1000 && msr->Blkt1000 )
@@ -587,7 +587,7 @@ msr_endtime (MSRecord *msr)
     return HPTERROR;
 
   if ( msr->samprate > 0.0 && msr->samplecnt > 0 )
-    span = ((double) (msr->samplecnt - 1) / msr->samprate * HPTMODULUS) + 0.5;
+    span = (hptime_t)(((double) (msr->samplecnt - 1) / msr->samprate * HPTMODULUS) + 0.5);
   
   return (msr->starttime + span);
 } /* End of msr_endtime() */
@@ -729,9 +729,9 @@ msr_print (MSRecord *msr, flag details)
     }
   else
     {
-      ms_log (0, "%s, %06d, %c, %d, %d samples, %-.10g Hz, %s\n",
+      ms_log (0, "%s, %06d, %c, %d, %lld samples, %-.10g Hz, %s\n",
 	      srcname, msr->sequence_number, msr->dataquality,
-	      msr->reclen, msr->samplecnt, msr->samprate, time);
+	      msr->reclen, (long long int) msr->samplecnt, msr->samprate, time);
     }
 
   /* Report information in the blockette chain */

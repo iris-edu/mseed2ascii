@@ -80,13 +80,13 @@ typedef struct MSRecord_s {
   char            channel[11];       /* Channel designation, NULL terminated */
   hptime_t        starttime;         /* Record start time, corrected (first sample) */
   double          samprate;          /* Nominal sample rate (Hz) */
-  int32_t         samplecnt;         /* Number of samples in record */
+  int64_t         samplecnt;         /* Number of samples in record */
   int8_t          encoding;          /* Data encoding format */
   int8_t          byteorder;         /* Byte order of record */
   
   /* Data sample fields */
   void           *datasamples;       /* Data samples, 'numsamples' of type 'sampletype'*/
-  int32_t         numsamples;        /* Number of data samples in datasamples */
+  int64_t         numsamples;        /* Number of data samples in datasamples */
   char            sampletype;        /* Sample type code: a, i, f, d */
 
   /* Stream oriented state information */
@@ -184,12 +184,21 @@ ststate:
 
  -- Traces --
 
-In order to manage continuous trace segments the library defines a
-MSTrace data structure and a MSTraceGroup data structure in which
-MSTrace structures can be grouped.  While a MSTrace structure is
-normally used to hold trace information and associated data samples it
-can also be used without data samples as a means to keep trace of data
-coverage without actual samples.
+In order to manage continuous trace segments the library provides a
+couple of different mechanisms: Trace Groups and Trace Lists.
+
+Initially only Trace Groups were implimented and later Trace Lists
+were added, from a general standpoint they do the same thing.  The
+Trace Lists are more efficient and slightly more complicated in their
+structure.  Either can be used for most tasks, but there are more
+utilities functions for Trace Groups.
+
+The TraceGroup functionality is centered around the MSTrace data
+structure and a MSTraceGroup data structure in which MSTrace
+structures can be grouped.  While a MSTrace structure is normally used
+to hold trace information and associated data samples it can also be
+used without data samples as a means to keep trace of data coverage
+without actual samples.
 
 Numerous routines are provided for basic management of MSTrace
 structures, including the creation of new MSTrace structures, adding
@@ -211,9 +220,9 @@ typedef struct MSTrace_s {
   hptime_t        starttime;       /* Time of first sample */
   hptime_t        endtime;         /* Time of last sample */
   double          samprate;        /* Nominal sample rate (Hz) */
-  int32_t         samplecnt;       /* Number of samples in trace coverage */
+  int64_t         samplecnt;       /* Number of samples in trace coverage */
   void           *datasamples;     /* Data samples, 'numsamples' of type 'sampletype'*/
-  int32_t         numsamples;      /* Number of data samples in datasamples */
+  int64_t         numsamples;      /* Number of data samples in datasamples */
   char            sampletype;      /* Sample type code: a, i, f, d */
   void           *prvtptr;         /* Private pointer for general use */
   StreamState    *ststate;         /* Stream processing state information */
@@ -351,6 +360,12 @@ to a MSTraceGroup, this is ideal for quickly reading data for
 processing.  Both of these routines are able to automatically detect
 record length.
 
+If your application is not designed to read Mini-SEED from files the
+library also provides functions to detect and parse Mini-SEED records
+in memory buffers.  For more information see ms_detect(3) and
+msr_parse(3).
+
+
 Skeleton code for reading a file with ms_readmsr(3):
 
 main() {
@@ -411,21 +426,14 @@ is used, the template is always in the form of a MSRecord structure.
 This allows the calling program to dictate the contents, with a few
 exceptions, of the header in the final data records.
 
-Skeleton code for creating (packing) Mini-SEED records with
-mst_pack(3):
-
-static void record_handler (char *record, int reclen, void *srcname) {
-  if ( fwrite(record, reclen, 1, outfile) != 1 )
-    {
-      ms_log (2, "Error writing %s to output file\n", (char *)srcname);
-    }
-}
+Skeleton code for creating (packing) and writing Mini-SEED records to
+a file with mst_writemseed(3):
 
 main() {
-  int psamples;
   int precords;
+  int verbose = 0;
+  char msfile = "output.mseed";
   MSTrace *mst;
-  char srcname[50];
 
   mst = mst_init (NULL);
 
@@ -436,20 +444,17 @@ main() {
   mst->starttime = ms_seedtimestr2hptime ("2004,350,00:00:00.000000");
   mst->samprate = 40.0;
 
-  /* The datasamples pointer and numsamples counter will be adjusted by
-     the packing routine, the datasamples array must be dynamic memory
-     allocated by the malloc() family of routines. */
-  mst->datasamples = dataptr; /* pointer to 32-bit integer data samples */  
+  mst->datasamples = dataptr; /* pointer to 32-bit integer data samples */
   mst->numsamples = 1234;
   mst->sampletype = 'i';      /* declare type to be 32-bit integers */
 
-  mst_srcname (mst, srcname, 0);
+  /* Write 4096 byte, big-endian records, using Steim-2 compression */
+  precords = mst_writemseed (mst, msfile, 1, 4096, DE_STEIM2, 1, verbose);
 
-  /* Pack 4096 byte, big-endian records, using Steim-2 compression */
-  precords = mst_pack (mst, &record_handler, srcname, 4096, DE_STEIM2,
-                                     1, &psamples, 1, verbose, NULL);
+  ms_log (0, "Wrote %d records to %s\n", precords, msfile);
 
-  ms_log (0, "Packed %d samples into %d records\n", psamples, precords);
+  /* Disconnect datasamples pointer, otherwise mst_free() will free it */
+  mst->datasamples = NULL;
 
   mst_free (&mst);
 }
