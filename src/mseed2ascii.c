@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2010.169
+ * modified 2011.231
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.0"
+#define VERSION "1.1"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -242,8 +242,8 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
       
       /* Print header line */
-      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, SLIST, %s, %s\n",
-	       srcname, mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+      fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
+	       srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
       
       lines = (mst->numsamples / slistcols) + ((slistcols == 1) ? 0 : 1);
       
@@ -253,7 +253,10 @@ writeascii (MSTrace *mst)
 	}
       
       if ( mst->sampletype == 'a' )
-	fprintf (ofp, "%.*s\n", mst->numsamples, (char *)mst->datasamples);
+	{
+	  fwrite (mst->datasamples, mst->numsamples, 1, ofp);
+	  fprintf (ofp, "\n");
+	}
       else
 	for ( cnt = 0, line = 0; line < lines; line++ )
 	  {
@@ -300,8 +303,8 @@ writeascii (MSTrace *mst)
 	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
       
       /* Print header line */
-      fprintf (ofp, "TIMESERIES %s, %d samples, %g sps, %s, TSPAIR, %s, %s\n",
-	       srcname, mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+      fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
+	       srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
       
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
@@ -332,10 +335,13 @@ writeascii (MSTrace *mst)
     }
   
   if ( outname == outfile )
-    fclose (ofp);
+    {
+      fclose (ofp);
+      ofp = 0;
+    }
   
-  fprintf (stderr, "Wrote %d samples from %s to %s\n",
-	   mst->numsamples, srcname, outname);
+  fprintf (stderr, "Wrote %lld samples from %s to %s\n",
+	   (long long int)mst->numsamples, srcname, outname);
   
   return mst->numsamples;
 }  /* End of writeascii() */

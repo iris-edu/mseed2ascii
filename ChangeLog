@@ -1,3 +1,7 @@
+2011.231: 1.1
+	- Update libmseed to 2.6.1.
+	- Fix output to multiple files, thanks John West.
+
 2010.266: 1.0
 	- Update libmseed to 2.5.1.
 	- Mark as 1.0.
