@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2011.231
+ * modified 2013.279
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "1.1"
+#define VERSION "2.0"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -36,6 +36,7 @@ static void usage (void);
 
 static int    verbose      = 0;    /* Verbosity level */
 static int    reclen       = -1;   /* Record length, -1 = autodetected */
+static int    deriverate   = 0;    /* Use sample rate derived instead of the reported rate */
 static int    indifile     = 0;    /* Individual file processing flag */
 static char  *unitsstr     = "Counts"; /* Units to write into output headers */
 static char  *outputfile   = 0;    /* Output file name for single file output */
@@ -160,39 +161,71 @@ main (int argc, char **argv)
 static int
 writeascii (MSTrace *mst)
 {
+  BTime btime;
   char outfile[1024];
   char *outname = outputfile;
   char timestr[50];
   char srcname[50];
   char *samptype;
   
+  int month, mday;
   int line, col, cnt, samplesize;
   int lines;
   void *sptr;
 
-#if defined (WIN32)
-  char *cp = 0;
-#endif
-  
   if ( ! mst )
     return -1;
   
   if ( mst->numsamples == 0 || mst->samprate == 0.0 )
     return 0;
   
+  /* Check reported versus derived sampling rates */
+  if ( mst->starttime < mst->endtime )
+    {
+      hptime_t hptimeshift;
+      hptime_t hpdelta;
+      double samprate;
+      
+      /* Calculate difference between end time of last miniSEED record and the end time
+       * as calculated based on the start time, reported sample rate and number of samples. */
+      hptimeshift = llabs (mst->endtime - mst->starttime - (hptime_t)((mst->numsamples - 1) * HPTMODULUS / mst->samprate));
+      
+      /* Calculate high-precision sample period using reported sample rate */
+      hpdelta = (hptime_t)(( mst->samprate ) ? (HPTMODULUS / mst->samprate) : 0.0);
+      
+      /* Test if time shift is beyond half a sample period */
+      if ( hptimeshift > (hpdelta * 0.5) )
+        {
+          /* Derive sample rate from start and end times and number of samples */
+          samprate = (double) (mst->numsamples - 1) * HPTMODULUS / (mst->endtime - mst->starttime);
+          
+          if ( deriverate )
+            {
+              if ( verbose )
+                fprintf (stderr, "Using derived sample rate of %g over reported rate of %g\n",
+                         samprate, mst->samprate);
+              
+              mst->samprate = samprate;
+            }
+          else
+            {
+              fprintf (stderr, "[%s.%s.%s.%s] Reported sample rate different than derived rate (%g versus %g)\n",
+                       mst->network, mst->station, mst->location, mst->channel,
+                       mst->samprate, samprate);
+              fprintf (stderr, "   Consider using the -dr option to use the sample rate derived from the series\n");
+            }
+        }
+    }
+  
   if ( verbose )
     fprintf (stderr, "Writing ASCII for %.8s.%.8s.%.8s.%.8s\n",
 	     mst->network, mst->station, mst->location, mst->channel);
   
-  /* Generate source name and ISO time string */
+  /* Generate source name, ISO time string and time components */
   mst_srcname (mst, srcname, 1);
   ms_hptime2isotimestr (mst->starttime, timestr, 1);
-  
-  /* Replace colons with underscores in the filename for Win32 */
-#if defined (WIN32)
-  cp = timestr;
-  while ( *cp ) { if ( *cp == ':' ) *cp = '_'; cp++; }
-#endif
+  ms_hptime2btime (mst->starttime, &btime);
+  ms_doy2md (btime.year, btime.day, &month, &mday);
   
   /* Set sample type description */
   if ( mst->sampletype == 'f' || mst-> sampletype == 'd' )
@@ -217,10 +250,11 @@ writeascii (MSTrace *mst)
   /* Generate and open output file name if single file not being used */
   if ( ! ofp )
     {
-      /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHour:Min:Sec.Subsec.txt */
-      snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%s.txt",
-		mst->network, mst->station, mst->location, mst->channel,
-		mst->dataquality, timestr);
+      /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHourMinSec.Subsec.txt */
+      snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%04d-%02d-%02dT%02d%02d%02d.%06d.txt",
+		mst->network, mst->station, mst->location, mst->channel, mst->dataquality,
+		btime.year, month, mday, btime.hour, btime.min, btime.sec,
+		(int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS) );
       
       /* Open output file */
       if ( (ofp = fopen (outfile, "wb")) == NULL )
@@ -379,6 +413,10 @@ parameter_proc (int argcount, char **argvec)
 	{
 	  reclen = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
 	}
+      else if (strcmp (argvec[optind], "-dr") == 0)
+        {
+          deriverate = 1;
+        }
       else if (strcmp (argvec[optind], "-i") == 0)
 	{
 	  indifile = 1;
@@ -694,6 +732,8 @@ usage (void)
 	   " -h           Show this usage message\n"
 	   " -v           Be more verbose, multiple flags can be used\n"
 	   " -r bytes     Specify SEED record length in bytes, default: 4096\n"
+	   " -dr          Use the sampling rate derived from the time stamps instead\n"
+	   "                of the sample rate denoted in the input data\n"
 	   " -i           Process each input file individually instead of merged\n"
            " -tt secs     Specify a time tolerance for continuous traces\n"
            " -rt diff     Specify a sample rate tolerance for continuous traces\n"
@@ -706,7 +746,6 @@ usage (void)
 	   "\n"
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
-	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.txt\n"
-	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.txt (Windows)\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.txt\n"
 	   "\n", slistcols);
 }  /* End of usage() */
