@@ -26,7 +26,7 @@ struct listnode {
   struct listnode *next;
 };
 
-static int writeascii (MSTrace *mst);
+static int64_t writeascii (MSTrace *mst);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt, int dasharg);
 static int readlistfile (char *listfile);
@@ -60,8 +60,8 @@ main (int argc, char **argv)
   struct listnode *flp;
   
   int retcode;
-  int totalrecs = 0;
-  int totalsamps = 0;
+  int64_t totalrecs = 0;
+  int64_t totalsamps = 0;
   int totalfiles = 0;
   
   /* Process given parameters (command line and parameter file) */
@@ -145,7 +145,8 @@ main (int argc, char **argv)
     fclose (ofp);
 
   if ( verbose )
-    printf ("Files: %d, Records: %d, Samples: %d\n", totalfiles, totalrecs, totalsamps);
+    printf ("Files: %d, Records: %lld, Samples: %lld\n", totalfiles,
+	    (long long int)totalrecs, (long long int)totalsamps);
   
   return 0;
 }  /* End of main() */
@@ -158,7 +159,7 @@ main (int argc, char **argv)
  *
  * Returns the number of samples written or -1 on error.
  ***************************************************************************/
-static int
+static int64_t
 writeascii (MSTrace *mst)
 {
   BTime btime;
@@ -169,8 +170,9 @@ writeascii (MSTrace *mst)
   char *samptype;
   
   int month, mday;
-  int line, col, cnt, samplesize;
-  int lines;
+  int col, cnt, samplesize;
+  int64_t line;
+  int64_t lines;
   void *sptr;
 
   if ( ! mst )
@@ -288,7 +290,7 @@ writeascii (MSTrace *mst)
       
       if ( mst->sampletype == 'a' )
 	{
-	  fwrite (mst->datasamples, mst->numsamples, 1, ofp);
+	  fwrite (mst->datasamples, (size_t) mst->numsamples, 1, ofp);
 	  fprintf (ofp, "\n");
 	}
       else

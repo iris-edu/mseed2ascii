@@ -1,9 +1,6 @@
 #
 # Nmake file - Windows version
 # Use 'nmake -f Makefile.win'
-#
-# THIS HAS NEVER BEEN TESTED
-# Some modification might be required.
 
 NODEBUG=1
 
@@ -11,6 +8,7 @@ NODEBUG=1
 
 INCS = /I..\libmseed
 LIBS = ..\libmseed\libmseed.lib
+OPTS = -D_CRT_SECURE_NO_WARNINGS
 
 BIN = ..\mseed2ascii.exe
 
@@ -22,7 +20,7 @@ $(BIN):	mseed2ascii.obj
 	link.exe /nologo /out:$(BIN) $(LIBS) mseed2ascii.obj
 
 .c.obj:
-   $(cc) /nologo $(cflags) $(cdebug) $(cvarsmt) $(tflags) $(INCS) $<
+   $(cc) /nologo $(cflags) $(cdebug) $(cvarsmt) $(tflags) $(INCS) $(OPTS) $<
 
 # Clean-up directives
 clean:
