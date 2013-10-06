@@ -1,4 +1,4 @@
-.TH MSEED2ASCII 1 2010/06/18
+.TH MSEED2ASCII 1 2013/10/06
 .SH NAME
 Mini-SEED to ASCII converter
 
@@ -18,18 +18,12 @@ A separate output file is written for each continuous time-series in
 the input data.  Output file names are of the form:
 
 .nf
-"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.FFFFFF.txt"
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.txt"
 .fi
 
-For Windows computers the colon (:) characters will be replaced with underscore (_) characters:
-
 .nf
-"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.FFFFFF.txt" (Windows)
-
 For example:
-"TA.ELFS..LHZ.R.2006-04-22T15:36:19.000000.txt"
-
-"TA.ELFS..LHZ.R.2006-04-22T15_36_19.000000.txt" (Windows)
+"TA.ELFS..LHZ.R.2006-04-22T153619.000000.txt"
 .fi
 
 If the input file name is "-" input Mini-SEED records will be read
@@ -50,6 +44,12 @@ Be more verbose.  This flag can be used multiple times ("-v -v" or
 .IP "-r \fIbytes\fP"
 Specify the Mini-SEED record length in \fIbytes\fP, by default this is
 autodetected.
+
+.IP "-dr        "
+Use the sampling rate derived from the start and end times and the
+number of samples instead of the rate specified in the input data.
+This is useful when the sample rate in the input data does not have
+enough resolution to represent the true rate.
 
 .IP "-i         "
 Process each input file individually.  By default all input files are
