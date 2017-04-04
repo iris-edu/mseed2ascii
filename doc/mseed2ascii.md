@@ -1,4 +1,4 @@
-# <p >Mini-SEED to ASCII converter</p>
+# <p >miniSEED to ASCII converter</p>
 
 1. [Name](#)
 1. [Synopsis](#synopsis)
@@ -15,7 +15,7 @@ mseed2ascii [options] file1 [file2 file3 ...]
 
 ## <a id='description'>Description</a>
 
-<p ><b>mseed2ascii</b> converts Mini-SEED time-series data to ASCII format. By default all aspects of the input files are automatically detected (record length, byte order, etc.).  If an input file name is prefixed with an '@' character the file is assumed to contain a list of input data files, see <i>LIST FILES</i> below.</p>
+<p ><b>mseed2ascii</b> converts miniSEED time-series data to ASCII format. By default all aspects of the input files are automatically detected (record length, byte order, etc.).  If an input file name is prefixed with an '@' character the file is assumed to contain a list of input data files, see <i>LIST FILES</i> below.</p>
 
 <p >A separate output file is written for each continuous time-series in the input data.  Output file names are of the form:</p>
 
@@ -28,7 +28,7 @@ For example:
 "TA.ELFS..LHZ.R.2006-04-22T153619.000000.txt"
 </pre>
 
-<p >If the input file name is "-" input Mini-SEED records will be read from standard input.</p>
+<p >If the input file name is "-" input miniSEED records will be read from standard input.</p>
 
 ## <a id='options'>Options</a>
 
@@ -46,7 +46,7 @@ For example:
 
 <b>-r </b><i>bytes</i>
 
-<p style="padding-left: 30px;">Specify the Mini-SEED record length in <i>bytes</i>, by default this is autodetected.</p>
+<p style="padding-left: 30px;">Specify the miniSEED record length in <i>bytes</i>, by default this is autodetected.</p>
 
 <b>-dr</b>
 

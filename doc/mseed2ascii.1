@@ -1,6 +1,6 @@
 .TH MSEED2ASCII 1 2013/10/06
 .SH NAME
-Mini-SEED to ASCII converter
+miniSEED to ASCII converter
 
 .SH SYNOPSIS
 .nf
@@ -8,7 +8,7 @@ mseed2ascii [options] file1 [file2 file3 ...]
 
 .fi
 .SH DESCRIPTION
-\fBmseed2ascii\fP converts Mini-SEED time-series data to ASCII format.
+\fBmseed2ascii\fP converts miniSEED time-series data to ASCII format.
 By default all aspects of the input files are automatically detected
 (record length, byte order, etc.).  If an input file name is prefixed
 with an '@' character the file is assumed to contain a list of input
@@ -26,7 +26,7 @@ For example:
 "TA.ELFS..LHZ.R.2006-04-22T153619.000000.txt"
 .fi
 
-If the input file name is "-" input Mini-SEED records will be read
+If the input file name is "-" input miniSEED records will be read
 from standard input.
 
 .SH OPTIONS
@@ -42,7 +42,7 @@ Be more verbose.  This flag can be used multiple times ("-v -v" or
 "-vv") for more verbosity.
 
 .IP "-r \fIbytes\fP"
-Specify the Mini-SEED record length in \fIbytes\fP, by default this is
+Specify the miniSEED record length in \fIbytes\fP, by default this is
 autodetected.
 
 .IP "-dr        "
