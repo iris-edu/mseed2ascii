@@ -1,11 +1,11 @@
 /***************************************************************************
  * mseed2ascii.c
  *
- * Convert Mini-SEED waveform data to ASCII
+ * Convert miniSEED waveform data to ASCII
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2013.279
+ * modified 2017.093
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "2.0"
+#define VERSION "2.1dev"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -726,7 +726,7 @@ static void
 usage (void)
 {
   fprintf (stderr, "%s version: %s\n\n", PACKAGE, VERSION);
-  fprintf (stderr, "Convert Mini-SEED data to ASCII\n\n");
+  fprintf (stderr, "Convert miniSEED data to ASCII\n\n");
   fprintf (stderr, "Usage: %s [options] input1.mseed [input2.mseed ...]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## Options ##\n"
