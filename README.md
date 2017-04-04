@@ -8,7 +8,10 @@ includes a simple header followed by
 For usage infromation see the [mseed2ascii manual](doc/mseed2ascii.md) in the
 'doc' directory.
 
-## Building and Installing 
+## Downloading and building
+
+The [releases](https://github.com/iris-edu/mseed2ascii/releases) area
+contains release versions.
 
 In most Unix/Linux environments a simple 'make' will build the program.
 
