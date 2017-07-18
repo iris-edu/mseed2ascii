@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2017.093
+ * modified 2017.199
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "2.1"
+#define VERSION "2.2dev"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -56,21 +56,21 @@ main (int argc, char **argv)
   MSTraceGroup *mstg = 0;
   MSTrace *mst;
   MSRecord *msr = 0;
-  
+
   struct listnode *flp;
-  
+
   int retcode;
   int64_t totalrecs = 0;
   int64_t totalsamps = 0;
   int totalfiles = 0;
-  
+
   /* Process given parameters (command line and parameter file) */
   if (parameter_proc (argc, argv) < 0)
     return -1;
-  
+
   /* Init MSTraceGroup */
   mstg = mst_initgroup (mstg);
-  
+
   /* Open the output file if specified */
   if ( outputfile )
     {
@@ -85,32 +85,32 @@ main (int argc, char **argv)
           return -1;
         }
     }
-  
+
   /* Read input miniSEED files into MSTraceGroup */
   flp = filelist;
   while ( flp != 0 )
     {
       if ( verbose )
         fprintf (stderr, "Reading %s\n", flp->data);
-      
+
       while ( (retcode = ms_readmsr(&msr, flp->data, reclen, NULL, NULL,
 				    1, 1, verbose-1)) == MS_NOERROR )
 	{
 	  if ( verbose > 1)
 	    msr_print (msr, verbose - 2);
-	  
+
 	  mst_addmsrtogroup (mstg, msr, 1, timetol, sampratetol);
-	  
+
 	  totalrecs++;
 	  totalsamps += msr->samplecnt;
 	}
-      
+
       if ( retcode != MS_ENDOFFILE )
 	fprintf (stderr, "Error reading %s: %s\n", flp->data, ms_errorstr(retcode));
-      
+
       /* Make sure everything is cleaned up */
       ms_readmsr (&msr, NULL, 0, NULL, NULL, 0, 0, 0);
-      
+
       /* If processing each file individually, write ASCII and reset */
       if ( indifile )
 	{
@@ -120,14 +120,14 @@ main (int argc, char **argv)
 	      writeascii (mst);
 	      mst = mst->next;
 	    }
-	  
+
 	  mstg = mst_initgroup (mstg);
 	}
-      
+
       totalfiles++;
       flp = flp->next;
     }
-  
+
   if ( ! indifile )
     {
       mst = mstg->traces;
@@ -137,24 +137,24 @@ main (int argc, char **argv)
 	  mst = mst->next;
 	}
     }
-  
+
   /* Make sure everything is cleaned up */
   mst_freegroup (&mstg);
-  
+
   if ( ofp )
     fclose (ofp);
 
   if ( verbose )
     printf ("Files: %d, Records: %lld, Samples: %lld\n", totalfiles,
 	    (long long int)totalrecs, (long long int)totalsamps);
-  
+
   return 0;
 }  /* End of main() */
 
 
 /***************************************************************************
  * writeascii:
- * 
+ *
  * Write data buffer to output file as ASCII.
  *
  * Returns the number of samples written or -1 on error.
@@ -168,7 +168,7 @@ writeascii (MSTrace *mst)
   char timestr[50];
   char srcname[50];
   char *samptype;
-  
+
   int month, mday;
   int col, cnt, samplesize;
   int64_t line;
@@ -177,36 +177,36 @@ writeascii (MSTrace *mst)
 
   if ( ! mst )
     return -1;
-  
+
   if ( mst->numsamples == 0 || mst->samprate == 0.0 )
     return 0;
-  
+
   /* Check reported versus derived sampling rates */
   if ( mst->starttime < mst->endtime )
     {
       hptime_t hptimeshift;
       hptime_t hpdelta;
       double samprate;
-      
+
       /* Calculate difference between end time of last miniSEED record and the end time
        * as calculated based on the start time, reported sample rate and number of samples. */
       hptimeshift = llabs (mst->endtime - mst->starttime - (hptime_t)((mst->numsamples - 1) * HPTMODULUS / mst->samprate));
-      
+
       /* Calculate high-precision sample period using reported sample rate */
       hpdelta = (hptime_t)(( mst->samprate ) ? (HPTMODULUS / mst->samprate) : 0.0);
-      
+
       /* Test if time shift is beyond half a sample period */
       if ( hptimeshift > (hpdelta * 0.5) )
         {
           /* Derive sample rate from start and end times and number of samples */
           samprate = (double) (mst->numsamples - 1) * HPTMODULUS / (mst->endtime - mst->starttime);
-          
+
           if ( deriverate )
             {
               if ( verbose )
                 fprintf (stderr, "Using derived sample rate of %g over reported rate of %g\n",
                          samprate, mst->samprate);
-              
+
               mst->samprate = samprate;
             }
           else
@@ -218,17 +218,17 @@ writeascii (MSTrace *mst)
             }
         }
     }
-  
+
   if ( verbose )
     fprintf (stderr, "Writing ASCII for %.8s.%.8s.%.8s.%.8s\n",
 	     mst->network, mst->station, mst->location, mst->channel);
-  
+
   /* Generate source name, ISO time string and time components */
   mst_srcname (mst, srcname, 1);
   ms_hptime2isotimestr (mst->starttime, timestr, 1);
   ms_hptime2btime (mst->starttime, &btime);
   ms_doy2md (btime.year, btime.day, &month, &mday);
-  
+
   /* Set sample type description */
   if ( mst->sampletype == 'f' || mst-> sampletype == 'd' )
     {
@@ -248,7 +248,7 @@ writeascii (MSTrace *mst)
 	       mst->sampletype);
       return -1;
     }
-  
+
   /* Generate and open output file name if single file not being used */
   if ( ! ofp )
     {
@@ -257,7 +257,7 @@ writeascii (MSTrace *mst)
 		mst->network, mst->station, mst->location, mst->channel, mst->dataquality,
 		btime.year, month, mday, btime.hour, btime.min, btime.sec,
 		(int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS) );
-      
+
       /* Open output file */
       if ( (ofp = fopen (outfile, "wb")) == NULL )
 	{
@@ -265,29 +265,29 @@ writeascii (MSTrace *mst)
 		   outfile, strerror(errno));
 	  return -1;
 	}
-      
+
       outname = outfile;
     }
-  
+
   /* Header format:
    * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units" */
-  
+
   if ( outformat == 1 || mst->sampletype == 'a' )
     {
       if ( verbose > 1 )
 	fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
-      
+
       /* Print header line */
       fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
 	       srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
-      
+
       lines = (mst->numsamples / slistcols) + ((slistcols == 1) ? 0 : 1);
-      
+
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
 	  fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
 	}
-      
+
       if ( mst->sampletype == 'a' )
 	{
 	  fwrite (mst->datasamples, (size_t) mst->numsamples, 1, ofp);
@@ -301,7 +301,7 @@ writeascii (MSTrace *mst)
 		if ( cnt < mst->numsamples )
 		  {
 		    sptr = (char*)mst->datasamples + (cnt * samplesize);
-		    
+
 		    if ( mst->sampletype == 'i' )
 		      {
 			if ( col != slistcols )
@@ -323,7 +323,7 @@ writeascii (MSTrace *mst)
 			else
 			  fprintf (ofp, "%.10g", *(double *)sptr);
 		      }
-		    
+
 		    cnt++;
 		  }
 	      }
@@ -334,34 +334,34 @@ writeascii (MSTrace *mst)
     {
       hptime_t samptime = mst->starttime;
       hptime_t hpdelta = ( mst->samprate ) ? (hptime_t) (HPTMODULUS / mst->samprate) : 0;
-      
+
       if ( verbose > 1 )
 	fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
-      
+
       /* Print header line */
       fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
 	       srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
-      
+
       if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
 	{
 	  fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
 	}
-      
+
       for ( cnt = 0; cnt < mst->numsamples; cnt++ )
 	{
 	  ms_hptime2isotimestr (samptime, timestr, 1);
-	  
+
 	  sptr = (char*)mst->datasamples + (cnt * samplesize);
-	  
+
 	  if ( mst->sampletype == 'i' )
 	    fprintf (ofp, "%s  %d\n", timestr, *(int32_t *)sptr);
-	  
+
 	  else if ( mst->sampletype == 'f' )
 	    fprintf (ofp, "%s  %.8g\n", timestr, *(float *)sptr);
-	  
+
 	  else if ( mst->sampletype == 'd' )
 	    fprintf (ofp, "%s  %.10g\n", timestr, *(double *)sptr);
-	  
+
 	  samptime += hpdelta;
 	}
     }
@@ -369,16 +369,16 @@ writeascii (MSTrace *mst)
     {
       fprintf (stderr, "Error, unrecognized format: '%d'\n", outformat);
     }
-  
+
   if ( outname == outfile )
     {
       fclose (ofp);
       ofp = 0;
     }
-  
+
   fprintf (stderr, "Wrote %lld samples from %s to %s\n",
 	   (long long int)mst->numsamples, srcname, outname);
-  
+
   return mst->numsamples;
 }  /* End of writeascii() */
 
@@ -393,7 +393,7 @@ static int
 parameter_proc (int argcount, char **argvec)
 {
   int optind;
-  
+
   /* Process all command line arguments */
   for (optind = 1; optind < argcount; optind++)
     {
@@ -462,7 +462,7 @@ parameter_proc (int argcount, char **argvec)
 	    }
         }
     }
-  
+
   /* Make sure an input files were specified */
   if ( filelist == 0 )
     {
@@ -471,11 +471,11 @@ parameter_proc (int argcount, char **argvec)
       fprintf (stderr, "Try %s -h for usage\n", PACKAGE);
       exit (1);
     }
-  
+
   /* Report the program version */
   if ( verbose )
     fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
-  
+
   /* Check the input files for any list files, if any are found
    * remove them from the list and add the contained list */
   if ( filelist )
@@ -513,18 +513,18 @@ parameter_proc (int argcount, char **argvec)
             {
               prevln = ln;
             }
-	  
+
           ln = ln->next;
         }
     }
-  
+
   return 0;
 }  /* End of parameter_proc() */
 
 
 /***************************************************************************
  * getoptval:
- * Return the value to a command line option; checking that the value is 
+ * Return the value to a command line option; checking that the value is
  * itself not an option (starting with '-') and is not past the end of
  * the argument list.
  *
@@ -543,15 +543,15 @@ getoptval (int argcount, char **argvec, int argopt, int dasharg)
     exit (1);
     return 0;
   }
-  
+
   /* When the value potentially starts with a dash (-) */
   if ( (argopt+1) < argcount && dasharg )
     return argvec[argopt+1];
-  
+
   /* Otherwise check that the value is not another option */
   if ( (argopt+1) < argcount && *argvec[argopt+1] != '-' )
     return argvec[argopt+1];
-  
+
   fprintf (stderr, "Option %s requires a value\n", argvec[argopt]);
   exit (1);
   return 0;
@@ -574,12 +574,12 @@ readlistfile (char *listfile)
   char  line[1024];
   char *ptr;
   int   filecnt = 0;
-  
+
   char  filename[1024];
   char *lastfield = 0;
   int   fields = 0;
   int   wspace;
-  
+
   /* Open the list file */
   if ( (fp = fopen (listfile, "rb")) == NULL )
     {
@@ -650,7 +650,7 @@ readlistfile (char *listfile)
 	    {
 	      fprintf (stderr, "Error adding file name to list\n");
 	    }
-	  
+
           filecnt++;
 
           continue;
@@ -675,13 +675,13 @@ addnode (struct listnode **listroot, void *key, int keylen,
 	 void *data, int datalen)
 {
   struct listnode *lastlp, *newlp;
-  
+
   if ( data == NULL )
     {
       fprintf (stderr, "addnode(): No data specified\n");
       return NULL;
     }
-  
+
   lastlp = *listroot;
   while ( lastlp != 0 )
     {
@@ -694,26 +694,26 @@ addnode (struct listnode **listroot, void *key, int keylen,
   /* Create new listnode */
   newlp = (struct listnode *) malloc (sizeof (struct listnode));
   memset (newlp, 0, sizeof (struct listnode));
-  
+
   if ( key )
     {
       newlp->key = malloc (keylen);
       memcpy (newlp->key, key, keylen);
     }
-  
+
   if ( data)
     {
       newlp->data = malloc (datalen);
       memcpy (newlp->data, data, datalen);
     }
-  
+
   newlp->next = 0;
-  
+
   if ( lastlp == 0 )
     *listroot = newlp;
   else
     lastlp->next = newlp;
-  
+
   return newlp;
 }  /* End of addnode() */
 
