@@ -1,4 +1,5 @@
-2017.199: 
+2017.199: 2.2	
+	- Update libmseed to 2.19.4.
 	- Improve resolution of timestamps for TSPAIR output for non-integer
 	sample rates.
 	- Cleanup formatting, convert whitespaces to spaces.
