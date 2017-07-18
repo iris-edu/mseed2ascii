@@ -1,3 +1,8 @@
+2017.199: 
+	- Improve resolution of timestamps for TSPAIR output for non-integer
+	sample rates.
+	- Cleanup formatting, convert whitespaces to spaces.
+
 2017.093: 2.1
 	- Update libmseed to 2.19.3.
 	- Remove dependency on ntwin32.mak for Windows nmake makefiles, now
@@ -9,7 +14,7 @@
 	- Update libmseed to 2.12
 	- Add check of derived sample rate versus reported sample rate.
 	- Add -dr option to use the derived sample rate over the reported rate,
-        this assumes that the timing is more accurate than the sampling rate.
+	this assumes that the timing is more accurate than the sampling rate.
 	- Change generated output file names to (no colons or commas):
 	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.ssssss.txt
 	which is consistent between between various operating systems.

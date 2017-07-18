@@ -17,7 +17,7 @@
 
 #include <libmseed.h>
 
-#define VERSION "2.2dev"
+#define VERSION "2.2"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -333,7 +333,7 @@ writeascii (MSTrace *mst)
   else if ( outformat == 2 )
   {
     hptime_t samptime = mst->starttime;
-    hptime_t hpdelta = ( mst->samprate ) ? (hptime_t) (HPTMODULUS / mst->samprate) : 0;
+    double hpperiod = ( mst->samprate ) ? (HPTMODULUS / mst->samprate) : 0;
 
     if ( verbose > 1 )
       fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
@@ -362,7 +362,7 @@ writeascii (MSTrace *mst)
       else if ( mst->sampletype == 'd' )
         fprintf (ofp, "%s  %.10g\n", timestr, *(double *)sptr);
 
-      samptime += hpdelta;
+      samptime = mst->starttime + (hptime_t)((cnt+1) * hpperiod);
     }
   }
   else
