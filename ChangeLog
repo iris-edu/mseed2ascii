@@ -3,6 +3,7 @@
 	GeoCSV output.
 	- Add -s option to scale (inversely) data by the scale factor in
 	supplied metadata, units from the metadata are reported in header.
+	- Use .csv instead of .txt for generated GeoCSV output file names.
 
 2018.073:
 	- Update libmseed to 2.19.5.

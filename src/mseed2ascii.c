@@ -341,11 +341,12 @@ writeascii (MSTrace *mst)
     return -1;
   }
 
-  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHourMinSec.Subsec.txt */
-  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%04d-%02d-%02dT%02d%02d%02d.%06d.txt",
+  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHourMinSec.Subsec.[txt|csv] */
+  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%04d-%02d-%02dT%02d%02d%02d.%06d.%s",
             mst->network, mst->station, mst->location, mst->channel, mst->dataquality,
             btime.year, month, mday, btime.hour, btime.min, btime.sec,
-            (int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS) );
+            (int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS),
+            (headerformat == 1) ? "txt" : "csv");
 
   /* Generate and open output file name if single file not being used and no ZIP output */
   if ( ! ofp && ! zipfile )
@@ -1484,6 +1485,6 @@ usage (void)
            "\n"
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
-	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.txt\n"
+	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.[txt | csv]\n"
 	   "\n");
 }  /* End of usage() */

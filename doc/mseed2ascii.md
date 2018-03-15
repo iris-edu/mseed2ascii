@@ -23,6 +23,8 @@ mseed2ascii [options] file1 [file2 file3 ...]
 
 <pre >
 "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.txt"
+or
+"Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.csv"
 </pre>
 
 <pre >
