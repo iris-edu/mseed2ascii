@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2018.073
+ * modified 2018.074
  ***************************************************************************/
 
 #include <stdio.h>
@@ -24,10 +24,22 @@
 #define VERSION "2.3dev"
 #define PACKAGE "mseed2ascii"
 
+/* Maximum number of metadata fields per line */
+#define MAXMETAFIELDS 17
+
 struct listnode {
   char *key;
   char *data;
   struct listnode *next;
+};
+
+struct metanode
+{
+  char *metafields[MAXMETAFIELDS];
+  double dip;
+  double scale;
+  hptime_t starttime;
+  hptime_t endtime;
 };
 
 static int64_t writeascii (MSTrace *mst);
@@ -35,6 +47,9 @@ static int writedata (char *outbuffer, size_t outsize, char *outfile);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt, int dasharg);
 static int readlistfile (char *listfile);
+struct metanode *getmetadata (MSTrace *mst);
+static int addmetadata (char *metaline);
+static int readmetadata (char *metafile);
 static struct listnode *addnode (struct listnode **listroot, void *key, int keylen,
 				 void *data, int datalen);
 static void usage (void);
@@ -59,9 +74,8 @@ static ZIPentry *zentry = 0;
 static int zipmethod = -1;
 #endif
 
-/* A list of input files */
-struct listnode *filelist = 0;
-
+struct listnode *filelist = 0;     /* A list of input files */
+struct listnode *metadata = 0;     /* List of stations and coordinates, etc. */
 
 int
 main (int argc, char **argv)
@@ -229,6 +243,7 @@ main (int argc, char **argv)
 static int64_t
 writeascii (MSTrace *mst)
 {
+  struct metanode *mn = NULL;
   BTime btime;
   char outfile[1024];
   char *outname = outputfile;
@@ -342,6 +357,10 @@ writeascii (MSTrace *mst)
     outname = outfile;
   }
 
+  /* Search for matching metadata */
+  if (metadata)
+    mn = getmetadata (mst);
+
 #ifndef NOFDZIP
   /* Begin ZIP entry */
   if (zipfile)
@@ -364,23 +383,99 @@ writeascii (MSTrace *mst)
    * "# delimeter: ,"
    * "# TSID: <TIMESERIES ID>"
    * "# sample_count: <COUNT>"
-   * "# sample_rate: <RATE>"
+   * "# sample_rate_hz: <RATE>"
    * "# start_time: <RATE>"
+
+   * If metadata is present these may be included:
+   * "# latitude_deg: <LATITUDE>"
+   * "# longitude_deg: <LONGITUDE>"
+   * "# elevation_m: <ELEVATION>"
+   * "# depth_m: <DEPTH>"
+   * "# azimuth_deg: <AZIMUTH>"
+   * "# dip_deg: <DIP>"
+   * "# instrument: <INSTRUMENT>"
+   * "# scale_factor: <SCALEFACTOR>"
+   * "# scale_frequency: <SCALEFREQ>"
+   * "# scale_units: <SCALEUNITS>"
+
    * "# field_unit: UTC, <TYPE>"
    * "# field_type: datetime, <TYPE>"
    */
+
+  /* Create initial part of header */
+  if (headerformat == 1)
+  {
+    /* Simple text header */
+    outsize = snprintf (outbuffer, sizeof(outbuffer),
+                        "TIMESERIES %s, %lld samples, %g sps, %s, ",
+                        srcname, (long long int)mst->numsamples, mst->samprate, timestr);
+  }
+  else
+  {
+    /* GeoCSV header */
+    outsize = snprintf (outbuffer, sizeof(outbuffer),
+                        "# dataset: GeoCSV 2.0\n"
+                        "# delimeter: ,\n"
+                        "# TSID: %s\n"
+                        "# sample_count: %lld\n"
+                        "# sample_rate_hz: %g\n"
+                        "# start_time: %sZ\n",
+                        srcname,
+                        (long long int)mst->numsamples,
+                        mst->samprate,
+                        timestr);
+
+    if (mn)
+    {
+      if (mn->metafields[4])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# latitude_deg: %s\n", mn->metafields[4]);
+      if (mn->metafields[5])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# longitude_deg: %s\n", mn->metafields[5]);
+      if (mn->metafields[6])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# elevation_m: %s\n", mn->metafields[6]);
+      if (mn->metafields[7])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# depth_m: %s\n", mn->metafields[7]);
+      if (mn->metafields[8])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# azimuth_deg: %s\n", mn->metafields[8]);
+      if (mn->metafields[9])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# dip_deg: %s\n", mn->metafields[9]);
+      if (mn->metafields[10])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# instrument: %s\n", mn->metafields[10]);
+      if (mn->metafields[11])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# scale_factor: %s\n", mn->metafields[11]);
+      if (mn->metafields[12])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# scale_frequency_hz: %s\n", mn->metafields[12]);
+      if (mn->metafields[13])
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# scale_units: %s\n", mn->metafields[13]);
+    }
+  }
+
+  if (outsize > sizeof(outbuffer))
+    outsize = sizeof(outbuffer);
+
+  if (writedata (outbuffer, outsize, outfile))
+    return -1;
 
   if ( outformat == 1 || mst->sampletype == 'a' )
   {
     if ( verbose > 1 )
       fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
 
-    /* Create header line */
+    /* Finish header */
     if (headerformat == 1)
     {
       outsize = snprintf (outbuffer, sizeof(outbuffer),
-                          "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
-                          srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+                          "SLIST, %s, %s\n", samptype, unitsstr);
     }
     else
     {
@@ -388,19 +483,9 @@ writeascii (MSTrace *mst)
       slistcols = 1;
 
       outsize = snprintf (outbuffer, sizeof(outbuffer),
-                          "# dataset: GeoCSV 2.0\n"
-                          "# delimeter: ,\n"
-                          "# TSID: %s\n"
-                          "# sample_count: %lld\n"
-                          "# sample_rate: %g\n"
-                          "# start_time: %sZ\n"
                           "# field_unit: %s\n"
                           "# field_type: %s\n"
                           "Sample\n",
-                          srcname,
-                          (long long int)mst->numsamples,
-                          mst->samprate,
-                          timestr,
                           unitsstr,
                           samptype);
     }
@@ -486,29 +571,18 @@ writeascii (MSTrace *mst)
     if ( verbose > 1 )
       fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
 
-    /* Create header line */
+    /* Finish header */
     if (headerformat == 1)
     {
       outsize = snprintf (outbuffer, sizeof(outbuffer),
-                          "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
-                          srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+                          "TSPAIR, %s, %s\n", samptype, unitsstr);
     }
     else
     {
       outsize = snprintf (outbuffer, sizeof(outbuffer),
-                          "# dataset: GeoCSV 2.0\n"
-                          "# delimeter: ,\n"
-                          "# TSID: %s\n"
-                          "# sample_count: %lld\n"
-                          "# sample_rate: %g\n"
-                          "# start_time: %sZ\n"
                           "# field_unit: UTC, %s\n"
                           "# field_type: datetime, %s\n"
                           "Time, Sample\n",
-                          srcname,
-                          (long long int)mst->numsamples,
-                          mst->samprate,
-                          timestr,
                           unitsstr,
                           samptype);
     }
@@ -531,7 +605,7 @@ writeascii (MSTrace *mst)
       sptr = (char*)mst->datasamples + (cnt * samplesize);
 
       if ( mst->sampletype == 'i' )
-       outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %d\n", timestr, *(int32_t *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %d\n", timestr, *(int32_t *)sptr);
 
       else if ( mst->sampletype == 'f' )
         outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %.8g\n", timestr, *(float *)sptr);
@@ -624,6 +698,8 @@ writedata (char *outbuffer, size_t outsize, char *outfile)
 static int
 parameter_proc (int argcount, char **argvec)
 {
+  char *metafile = 0;
+  char *metaline = 0;
   int optind;
 
   /* Process all command line arguments */
@@ -643,10 +719,6 @@ parameter_proc (int argcount, char **argvec)
     {
       verbose += strspn (&argvec[optind][1], "v");
     }
-    else if (strcmp (argvec[optind], "-r") == 0)
-    {
-      reclen = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
-    }
     else if (strcmp (argvec[optind], "-dr") == 0)
     {
       deriverate = 1;
@@ -654,6 +726,38 @@ parameter_proc (int argcount, char **argvec)
     else if (strcmp (argvec[optind], "-i") == 0)
     {
       indifile = 1;
+    }
+    else if (strcmp (argvec[optind], "-G") == 0)
+    {
+      headerformat = 2;
+    }
+    else if (strcmp (argvec[optind], "-c") == 0)
+    {
+      slistcols = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
+    }
+    else if (strcmp (argvec[optind], "-u") == 0)
+    {
+      unitsstr = getoptval(argcount, argvec, optind++, 0);
+    }
+    else if (strcmp (argvec[optind], "-m") == 0)
+    {
+      metafile = getoptval (argcount, argvec, optind++, 0);
+    }
+    else if (strcmp (argvec[optind], "-M") == 0)
+    {
+      metaline = getoptval (argcount, argvec, optind++, 0);
+      if ( addmetadata(metaline) < 0 )
+      {
+        fprintf (stderr, "Error adding metadata fields for line:\n%s\n", metaline);
+      }
+    }
+    else if (strcmp (argvec[optind], "-f") == 0)
+    {
+      outformat = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
+    }
+    else if (strcmp (argvec[optind], "-o") == 0)
+    {
+      outputfile = getoptval(argcount, argvec, optind++, 1);
     }
 #ifndef NOFDZIP
     else if (strcmp (argvec[optind], "-z") == 0)
@@ -667,6 +771,10 @@ parameter_proc (int argcount, char **argvec)
       zipmethod = ZS_STORE;
     }
 #endif
+    else if (strcmp (argvec[optind], "-r") == 0)
+    {
+      reclen = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
+    }
     else if (strcmp (argvec[optind], "-tt") == 0)
     {
       timetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
@@ -674,26 +782,6 @@ parameter_proc (int argcount, char **argvec)
     else if (strcmp (argvec[optind], "-rt") == 0)
     {
       sampratetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
-    }
-    else if (strcmp (argvec[optind], "-o") == 0)
-    {
-      outputfile = getoptval(argcount, argvec, optind++, 1);
-    }
-    else if (strcmp (argvec[optind], "-G") == 0)
-    {
-      headerformat = 2;
-    }
-    else if (strcmp (argvec[optind], "-f") == 0)
-    {
-      outformat = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
-    }
-    else if (strcmp (argvec[optind], "-c") == 0)
-    {
-      slistcols = strtoul (getoptval(argcount, argvec, optind++, 0), NULL, 10);
-    }
-    else if (strcmp (argvec[optind], "-u") == 0)
-    {
-      unitsstr = getoptval(argcount, argvec, optind++, 0);
     }
     else if (strncmp (argvec[optind], "-", 1) == 0 &&
              strlen (argvec[optind]) > 1 )
@@ -770,6 +858,16 @@ parameter_proc (int argcount, char **argvec)
       }
 
       ln = ln->next;
+    }
+  }
+
+  /* Read metadata file if specified */
+  if (metafile)
+  {
+    if (readmetadata (metafile))
+    {
+      fprintf (stderr, "Error reading metadata file\n");
+      return -1;
     }
   }
 
@@ -917,6 +1015,340 @@ readlistfile (char *listfile)
   return filecnt;
 }  /* End readlistfile() */
 
+/***************************************************************************
+ * getmetadata:
+ *
+ * Search the metadata list for the first matching source and return
+ * if found.  The source names (net, sta, loc, chan) are used to find
+ * a match.  If metadata list entries include a '*' they will match
+ * everything, for example if the channel field is '*' all channels
+ * for the specified network, station and location will match the list
+ * entry.
+ *
+ * Returns matching metadata node if match found, NULL otherwise.
+ ***************************************************************************/
+struct metanode *
+getmetadata (MSTrace *mst)
+{
+  struct listnode *mlp = metadata;
+  struct metanode *mn = NULL;
+
+  if (!mst)
+    return NULL;
+
+  while (mlp)
+  {
+    mn = (struct metanode *)mlp->data;
+
+    /* Sanity check that source name fields are present */
+    if (!mn->metafields[0] || !mn->metafields[1] ||
+        !mn->metafields[2] || !mn->metafields[3])
+    {
+      fprintf (stderr, "getmetadata(): error, source name fields not all present\n");
+    }
+    /* Test if network, station, location and channel; also handle simple wildcards */
+    else if ((!strcmp (mst->network, mn->metafields[0]) || (*(mn->metafields[0]) == '*')) &&
+             (!strcmp (mst->station, mn->metafields[1]) || (*(mn->metafields[1]) == '*')) &&
+             (!strcmp (mst->location, mn->metafields[2]) || (*(mn->metafields[2]) == '*')) &&
+             (!strcmp (mst->channel, mn->metafields[3]) || (*(mn->metafields[3]) == '*')))
+    {
+      /* Check time window match */
+      if (mn->starttime != HPTERROR || mn->endtime != HPTERROR)
+      {
+        /* Check for overlap with metadata window */
+        if (mn->starttime != HPTERROR && mn->endtime != HPTERROR)
+        {
+          if (!(mst->endtime >= mn->starttime && mst->starttime <= mn->endtime))
+          {
+            mlp = mlp->next;
+            continue;
+          }
+        }
+        /* Check if data after start time */
+        else if (mn->starttime != HPTERROR)
+        {
+          if (mst->endtime < mn->starttime)
+          {
+            mlp = mlp->next;
+            continue;
+          }
+        }
+        /* Check if data before end time */
+        else if (mn->endtime != HPTERROR)
+        {
+          if (mst->starttime > mn->endtime)
+          {
+            mlp = mlp->next;
+            continue;
+          }
+        }
+      }
+
+      if (verbose > 1)
+        fprintf (stderr, "Found metadata for N: '%s', S: '%s', L: '%s', C: '%s' (%s - %s)\n",
+                 mst->network, mst->station, mst->location, mst->channel,
+                 (mn->metafields[15]) ? mn->metafields[15] : "NONE",
+                 (mn->metafields[16]) ? mn->metafields[16] : "NONE");
+
+      return mn;
+    }
+
+    mlp = mlp->next;
+  }
+
+  return NULL;
+} /* End of getmetadata() */
+
+
+/***************************************************************************
+ * addmetadata:
+ *
+ * Parse and add a metadata entry into a structured list.  The
+ * metadata line should contain the following fields (comma or bar
+ * separated) in this order:
+ *
+ * The metadata list should be populated with an array of pointers to:
+ *  0:  Network
+ *  1:  Station
+ *  2:  Location
+ *  3:  Channel
+ *  4:  Latitude
+ *  5:  Longitude
+ *  6:  Elevation
+ *  7:  Depth
+ *  8:  Component Azimuth
+ *  9:  Component Dip (SEED) or Inclination (SAC)
+ *  10: Instrument Name
+ *  11: Scale Factor
+ *  12: Scale Frequency
+ *  13: Scale Units
+ *  14: Sampling rate
+ *  15: Start time
+ *  16: End time
+ *
+ * Any lines not containing at least 3 separators (commas or vertical
+ * bars) are not considered complete.  If the first 4 fields are
+ * empty, they will be stored as empty strings, whereas any other
+ * empty fields will be set to NULL.
+ *
+ * If the separators are commas (,) the component inclination is assumed
+ * to be in the SAC convention.  If the separators are vertical bars
+ * (|) the component inclination is assumed to be a SEED dip.
+ *
+ * The SAC convention inclination (degrees down from vertical
+ * up/outward) will be converted to SEED dip convention (degrees down
+ * from horizontal).
+ *
+ * Returns number of fields parsed on success and -1 on failure.
+ ***************************************************************************/
+static int
+addmetadata (char *metaline)
+{
+  struct metanode mn;
+  char *lineptr;
+  char *fp;
+  char *endptr;
+  char delim;
+  int sacinc = 1;
+  int fields = 0;
+  int commas = 0;
+  int bars = 0;
+  int idx;
+
+  if (!metaline)
+    return -1;
+
+  /* Count the number of commas */
+  fp = metaline;
+  while ((fp = strchr (fp, ',')))
+  {
+    commas++;
+    fp++;
+  }
+  /* Count the number of vertical bars */
+  fp = metaline;
+  while ((fp = strchr (fp, '|')))
+  {
+    bars++;
+    fp++;
+  }
+
+  /* Set delimiter, if vertial bars expect "inclination" to be SEED dip convention */
+  if (bars > 0)
+  {
+    delim = '|';
+    sacinc = 1;
+  }
+  else
+  {
+    delim = ',';
+  }
+
+  /* Must have at least 3 separators for Net, Sta, Loc, Chan ... */
+  if (((delim == '|') ? bars : commas) < 3)
+  {
+    if (verbose > 1)
+      fprintf (stderr, "Skipping metadata line: %s\n", metaline);
+
+    return 0;
+  }
+
+  /* Create a copy of the line */
+  lineptr = strdup (metaline);
+
+  mn.metafields[0] = fp = lineptr;
+  mn.starttime = HPTERROR;
+  mn.endtime = HPTERROR;
+
+  /* Separate line on delimiter and index in metafields array */
+  for (idx = 1; idx < MAXMETAFIELDS; idx++)
+  {
+    mn.metafields[idx] = NULL;
+
+    if (fp)
+    {
+      if ((fp = strchr (fp, delim)))
+      {
+        *fp++ = '\0';
+
+        if (idx <= 3)
+           mn.metafields[idx] = fp;
+
+        else if (*fp != delim && *fp != '\0')
+          mn.metafields[idx] = fp;
+
+        fields++;
+      }
+    }
+  }
+
+  /* Trim last field if more fields exist */
+  if (fp && (fp = strchr (fp, ',')))
+    *fp = '\0';
+
+  /* Convert dash-dash location codes to empty strings */
+  if (!strcmp (mn.metafields[2], "--"))
+  {
+    mn.metafields[2] = "";
+  }
+
+  /* Parse and convert the value to a dip as needed */
+  if (mn.metafields[9])
+  {
+    mn.dip = strtod (mn.metafields[9], &endptr);
+    if (mn.dip == 0.0 && endptr == mn.metafields[9])
+    {
+      fprintf (stderr, "Error parsing dip: '%s'\n", mn.metafields[9]);
+      exit (1);
+    }
+
+    /* Convert SAC inclination to SEED dip */
+    if (sacinc)
+    {
+      mn.dip -= 90;
+    }
+  }
+
+  /* Parse scale factor */
+  if (mn.metafields[11])
+  {
+    mn.scale = strtod (mn.metafields[11], &endptr);
+    if (mn.scale == 0.0 && endptr == mn.metafields[11])
+    {
+      fprintf (stderr, "Error parsing scale factor: '%s'\n", mn.metafields[11]);
+      exit (1);
+    }
+  }
+
+  /* Parse and convert start time */
+  if (mn.metafields[15])
+  {
+    if ((mn.starttime = ms_timestr2hptime (mn.metafields[15])) == HPTERROR)
+    {
+      fprintf (stderr, "Error parsing metadata start time: '%s'\n", mn.metafields[15]);
+      exit (1);
+    }
+  }
+
+  /* Parse and convert end time */
+  if (mn.metafields[16])
+  {
+    if ((mn.endtime = ms_timestr2hptime (mn.metafields[16])) == HPTERROR)
+    {
+      fprintf (stderr, "Error parsing metadata end time: '%s'\n", mn.metafields[16]);
+      exit (1);
+    }
+  }
+
+  /* Add the metanode to the metadata list */
+  if (!addnode (&metadata, NULL, 0, &mn, sizeof (struct metanode)))
+  {
+    fprintf (stderr, "Error adding metadata fields to list\n");
+  }
+
+  return fields;
+} /* End of addmetadata() */
+
+
+/***************************************************************************
+ * readmetadata:
+ *
+ * Read a file of metadata lines and add to a structured list.  Each
+ * line is processed by addmetadata() and should be in the format
+ * expected by that routine.
+ *
+ * Any lines beginning with '#' are skipped, think comments.
+ *
+ * Returns 0 on sucess and -1 on failure.
+ ***************************************************************************/
+static int
+readmetadata (char *metafile)
+{
+  FILE *mfp;
+  char line[1024];
+  char *fp;
+  int linecount = 0;
+
+  if (!metafile)
+    return -1;
+
+  if ((mfp = fopen (metafile, "rb")) == NULL)
+  {
+    fprintf (stderr, "Cannot open metadata output file: %s (%s)\n",
+             metafile, strerror (errno));
+    return -1;
+  }
+
+  if (verbose)
+    fprintf (stderr, "Reading station/channel metadata from %s\n", metafile);
+
+  while (fgets (line, sizeof (line), mfp))
+  {
+    linecount++;
+
+    /* Truncate at line return if any */
+    if ((fp = strchr (line, '\n')))
+      *fp = '\0';
+
+    /* Check for comment line beginning with '#' */
+    if (line[0] == '#')
+    {
+      if (verbose > 1)
+        fprintf (stderr, "Skipping comment line: %s\n", line);
+      continue;
+    }
+
+    if ( addmetadata(line) < 0 )
+    {
+      fprintf (stderr, "Error adding metadata fields to list for line %d:\n%s\n", linecount, line);
+    }
+  }
+
+  fclose (mfp);
+
+  return 0;
+} /* End of readmetadata() */
+
 
 /***************************************************************************
  * addnode:
@@ -981,26 +1413,30 @@ static void
 usage (void)
 {
   fprintf (stderr, "%s version: %s\n\n", PACKAGE, VERSION);
-  fprintf (stderr, "Convert miniSEED data to ASCII\n\n");
+  fprintf (stderr, "Convert miniSEED data to ASCII (Simple text or GeoCSV)\n\n");
   fprintf (stderr, "Usage: %s [options] input1.mseed [input2.mseed ...]\n\n", PACKAGE);
   fprintf (stderr,
 	   " ## Options ##\n"
 	   " -V           Report program version\n"
 	   " -h           Show this usage message\n"
 	   " -v           Be more verbose, multiple flags can be used\n"
-	   " -r bytes     Specify SEED record length in bytes, default: autodetect\n"
 	   " -dr          Use the sampling rate derived from the time stamps instead\n"
 	   "                of the sample rate denoted in the input data\n"
 	   " -i           Process each input file individually instead of merged\n"
-           " -tt secs     Specify a time tolerance for continuous traces\n"
-           " -rt diff     Specify a sample rate tolerance for continuous traces\n"
-           " -o outfile   Specify the output file, default is segment files\n"
+           "\n"
 	   " -G           Produce GeoCSV formatted output\n"
+	   " -c cols      Number of columns for sample value list output (default is %d)\n"
+	   " -u units     Specify units string for headers, default is 'Counts'\n"
+           " -m metafile    File containing channel metadata (coordinates and more)\n"
+           " -M metaline    Channel metadata, same format as lines in metafile\n"
 	   " -f format    Specify output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
-	   " -c cols      Number of columns for sample value list output (default is %d)\n"
-	   " -u units     Specify units string for headers, default is 'Counts'\n",
+           " -o outfile   Specify the output file, default is segment files\n"
+           "\n"
+           " -r bytes     Specify SEED record length in bytes, default: autodetect\n"
+           " -tt secs     Specify a time tolerance for continuous traces\n"
+           " -rt diff     Specify a sample rate tolerance for continuous traces\n",
 	   slistcols);
 
 #ifndef NOFDZIP

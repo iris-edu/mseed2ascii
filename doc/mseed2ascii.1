@@ -1,4 +1,4 @@
-.TH MSEED2ASCII 1 2018/03/14
+.TH MSEED2ASCII 1 2018/03/15
 .SH NAME
 mseed2ascii \- miniSEED to ASCII converter
 
@@ -8,11 +8,10 @@ mseed2ascii [options] file1 [file2 file3 ...]
 
 .fi
 .SH DESCRIPTION
-\fBmseed2ascii\fP converts miniSEED time-series data to ASCII format.
-By default all aspects of the input files are automatically detected
-(record length, byte order, etc.).  If an input file name is prefixed
-with an '@' character the file is assumed to contain a list of input
-data files, see \fILIST FILES\fP below.
+\fBmseed2ascii\fP converts miniSEED time-series data to ASCII formats,
+either simple text or GeoCSV.  If an input file name is prefixed with
+an '@' character the file is assumed to contain a list of input data
+files, see \fILIST FILES\fP below.
 
 A separate output file is written for each continuous time-series in
 the input data.  Output file names are of the form:
@@ -41,10 +40,6 @@ Print program usage and exit.
 Be more verbose.  This flag can be used multiple times ("-v -v" or
 "-vv") for more verbosity.
 
-.IP "-r \fIbytes\fP"
-Specify the miniSEED record length in \fIbytes\fP, by default this is
-autodetected.
-
 .IP "-dr        "
 Use the sampling rate derived from the start and end times and the
 number of samples instead of the rate specified in the input data.
@@ -59,6 +54,57 @@ written in a single ASCII file.  The intention is to use this option
 when processing large amounts of data in order to keep memory usage
 within reasonable limits.
 
+.IP "-G         "
+Produce GeoCSV formatted output. With this option multi-column sample
+lists are not allowed, i.e. the \fB-c\fP option is ignored.
+
+.IP "-c \fIcols\fP"
+Specify the number of columns to use for sample list formatted output,
+default is 1 column.
+
+.IP "-u \fIunits\fP"
+Specify the units string that should be included in the ASCII output
+headers, the default is "Counts".
+
+.IP "-m \fImetafile\fP"
+Specify a file containing metadata such as coordinates, elevation,
+component orientation, scaling factor, etc.  For each time-series
+written any matching metadata will be added to the SAC header.  See
+\fIMETADATA FILES\fP below.
+
+.IP "-M \fImetaline\fP"
+Specify a "line" of metadata in the same format as expected for the
+\fIMETADATA FILES\fP.  This option may be specified multiple times.
+
+.IP "-f \fIformat\fP"
+The default output format is sample list.  This option applies to all
+output files:
+
+.nf
+1 : Sample list format, header includes time stamp of first
+2 : Time-sample pair format, each sample value listed with time stamp
+.fi
+
+.IP "-o \fIoutfile\fP"
+Write all ASCII output to \fIoutfile\fP, if \fIoutfile\fP is a single
+dash (-) then all output will go to stdout.  If this option is not
+specified each contiguous segment is written to a separate file.  All
+diagnostic output from the program is written to stderr and should
+never get mixed with data going to stdout.
+
+.IP "-z \fIzipfile\fP"
+Create a ZIP archive containing all SAC files instead of writing
+individual files.  Each file is compressed with the deflate method.
+Specify \fB"-"\fP (dash) to write ZIP archive to stdout.
+
+.IP "-z0 \fIzipfile\fP"
+Same as \fI"-z"\fP except do not compress the SAC files.  Specify
+\fB"-"\fP (dash) to write ZIP archive to stdout.
+
+.IP "-r \fIbytes\fP"
+Specify the miniSEED record length in \fIbytes\fP, by default this is
+autodetected.
+
 .IP "-tt \fIsecs\fP"
 Specify a time tolerance for constructing continous trace segments.
 The tolerance is specified in seconds.  The default tolerance is 1/2
@@ -70,42 +116,62 @@ segments.  The tolerance is specified as the difference between two
 sampling rates.  The default tolerance is tested as: (abs(1-sr1/sr2) <
 0.0001).
 
-.IP "-o \fIoutfile\fP"
-Write all ASCII output to \fIoutfile\fP, if \fIoutfile\fP is a single
-dash (-) then all output will go to stdout.  If this option is not
-specified each contiguous segment is written to a separate file.  All
-diagnostic output from the program is written to stderr and should
-never get mixed with data going to stdout.
+.SH "METADATA FILES"
+A metadata file contains a list of station parameters, some of which
+can be stored in SAC but not in miniSEED.  Each line in a metadata
+file should be a list of parameters in the order shown below.  Each
+parameter should be separated with a comma or a vertical bar (|).
+\fbDIP CONVENTION:\fP When comma separators are used the dip field
+(CMPINC) is assumed to be in the SAC convention (degrees down from
+vertical up/outward), if vertical bars are used the dip field is
+assumed to be in the SEED convention (degrees down from horizontal)
+and converted to SAC convention.
 
-.IP "-G         "
-Produce GeoCSV formatted output. With this option multi-column sample
-lists are not allowed, i.e. the \fB-c\fP option is ignored.
-
-.IP "-f \fIformat\fP"
-The default output format is sample list.  This option applies to all
-output files:
-
+\fBMetdata fields\fP:
 .nf
-1 : Sample list format, header includes time stamp of first
-2 : Time-sample pair format, each sample value listed with time stamp
+Network
+Station
+Location
+Channel
+Latitude
+Longitude
+Elevation, in meters
+Depth, in meters
+Component Azimuth, degrees clockwise from north
+Component Dip, degrees from horizontal
+Instrument Name
+Scale Factor
+Scale Frequency
+Scale Units
+Sampling rate
+Start time, used for matching
+End time, used for matching
+
+Example with vertical bar separators (with SEED convention dip):
+
+------------------
+#net|sta|loc|chan|lat|lon|elev|depth|azimuth|SEEDdip|instrument|scale|scalefreq|scaleunits|samplerate|start|end
+IU|ANMO|00|BH1|34.945981|-106.457133|1671|145|328|0|Geotech KS-54000|3456610000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
+IU|ANMO|00|BH2|34.945981|-106.457133|1671|145|58|0|Geotech KS-54000|3344370000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
+IU|ANMO|00|BHZ|34.945981|-106.457133|1671|145|0|-90|Geotech KS-54000|3275080000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
+------------------
+
+As a special case '--' can be used to match an empty location code.
 .fi
 
-.IP "-c \fIcols\fP"
-Specify the number of columns to use for sample list formatted output,
-default is 1 column.
+For each time-series written, metadata from the first line with
+matching source name parameters (network, station, location and
+channel) and time window (if specified) will be inserted into the
+GeoCSV headers.  All parameters are optional except for the first four
+fields specifying the source name parameters.
 
-.IP "-u \fIunits\fP"
-Specify the units string that should be included in the ASCII output
-headers, the default is "Counts".
+Simple wildcarding: for the source name parameters that will be
+matched a '*' character in a field will match anything.  The BHZ
+metadata lines above, for example, can be (almost) summarized as:
 
-.IP "-z \fIzipfile\fP"
-Create a ZIP archive containing all SAC files instead of writing
-individual files.  Each file is compressed with the deflate method.
-Specify \fB"-"\fP (dash) to write ZIP archive to stdout.
-
-.IP "-z0 \fIzipfile\fP"
-Same as \fI"-z"\fP except do not compress the SAC files.  Specify
-\fB"-"\fP (dash) to write ZIP archive to stdout.
+.nf
+IU|ANMO|*|BHZ|34.9459|-106.4571|1671|145|0|0|Geotech KS-54000|3456610000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
+.fi
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed
