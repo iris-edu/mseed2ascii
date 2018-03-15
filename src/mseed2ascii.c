@@ -1,11 +1,11 @@
 /***************************************************************************
  * mseed2ascii.c
  *
- * Convert miniSEED waveform data to ASCII
+ * Convert miniSEED waveform data to ASCII formats
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2017.199
+ * modified 2018.073
  ***************************************************************************/
 
 #include <stdio.h>
@@ -17,7 +17,11 @@
 
 #include <libmseed.h>
 
-#define VERSION "2.2"
+#ifndef NOFDZIP
+#include "fdzipstream.h"
+#endif
+
+#define VERSION "2.3dev"
 #define PACKAGE "mseed2ascii"
 
 struct listnode {
@@ -27,6 +31,7 @@ struct listnode {
 };
 
 static int64_t writeascii (MSTrace *mst);
+static int writedata (char *outbuffer, size_t outsize, char *outfile);
 static int parameter_proc (int argcount, char **argvec);
 static char *getoptval (int argcount, char **argvec, int argopt, int dasharg);
 static int readlistfile (char *listfile);
@@ -46,6 +51,13 @@ static int    slistcols    = 1;    /* Number of columns for sample list output *
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
 static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
 
+static char *zipfile = 0;
+#ifndef NOFDZIP
+static ZIPstream *zstream = 0;
+static ZIPentry *zentry = 0;
+static int zipmethod = -1;
+#endif
+
 /* A list of input files */
 struct listnode *filelist = 0;
 
@@ -63,6 +75,12 @@ main (int argc, char **argv)
   int64_t totalrecs = 0;
   int64_t totalsamps = 0;
   int totalfiles = 0;
+
+#ifndef NOFDZIP
+  FILE *zipfp;
+  int zipfd;
+  ssize_t writestatus = 0;
+#endif /* NOFDZIP */
 
   /* Process given parameters (command line and parameter file) */
   if (parameter_proc (argc, argv) < 0)
@@ -85,6 +103,40 @@ main (int argc, char **argv)
       return -1;
     }
   }
+
+#ifndef NOFDZIP
+  /* Open & intialize output ZIP archive if needed */
+  if (zipfile)
+  {
+    if (!strcmp (zipfile, "-")) /* Write ZIP to stdout */
+    {
+      if (verbose)
+        fprintf (stderr, "Writing ZIP archive to stdout\n");
+
+      zipfd = fileno (stdout);
+    }
+    else if ((zipfp = fopen (zipfile, "wb")) == NULL) /* Open output ZIP file */
+    {
+      fprintf (stderr, "Cannot open output file: %s (%s)\n",
+               zipfile, strerror (errno));
+      return -1;
+    }
+    else
+    {
+      if (verbose)
+        fprintf (stderr, "Writing ZIP archive to %s\n", zipfile);
+
+      zipfd = fileno (zipfp);
+    }
+
+    /* Initialize ZIP container */
+    if ((zstream = zs_init (zipfd, zstream)) == NULL)
+    {
+      fprintf (stderr, "Error in zs_init()\n");
+      return 1;
+    }
+  }
+#endif /* NOFDZIP */
 
   /* Read input miniSEED files into MSTraceGroup */
   flp = filelist;
@@ -144,6 +196,20 @@ main (int argc, char **argv)
   if ( ofp )
     fclose (ofp);
 
+#ifndef NOFDZIP
+  /* Finish output ZIP archive if needed */
+  if (zipfile)
+  {
+    if (zs_finish (zstream, &writestatus))
+    {
+      fprintf (stderr, "Error finishing ZIP archive, write status: %lld\n",
+               (long long int)writestatus);
+    }
+
+    zs_free (zstream);
+  }
+#endif /* NOFDZIP */
+
   if ( verbose )
     printf ("Files: %d, Records: %lld, Samples: %lld\n", totalfiles,
 	    (long long int)totalrecs, (long long int)totalsamps);
@@ -168,12 +234,18 @@ writeascii (MSTrace *mst)
   char timestr[50];
   char srcname[50];
   char *samptype;
+  char outbuffer[2048];
+  int outsize;
 
   int month, mday;
   int col, cnt, samplesize;
   int64_t line;
   int64_t lines;
   void *sptr;
+
+#ifndef NOFDZIP
+  ssize_t writestatus = 0;
+#endif /* NOFDZIP */
 
   if ( ! mst )
     return -1;
@@ -249,15 +321,15 @@ writeascii (MSTrace *mst)
     return -1;
   }
 
-  /* Generate and open output file name if single file not being used */
-  if ( ! ofp )
-  {
-    /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHourMinSec.Subsec.txt */
-    snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%04d-%02d-%02dT%02d%02d%02d.%06d.txt",
-              mst->network, mst->station, mst->location, mst->channel, mst->dataquality,
-              btime.year, month, mday, btime.hour, btime.min, btime.sec,
-              (int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS) );
+  /* Create output file name: Net.Sta.Loc.Chan.Qual.Year-Month-DayTHourMinSec.Subsec.txt */
+  snprintf (outfile, sizeof(outfile), "%s.%s.%s.%s.%c.%04d-%02d-%02dT%02d%02d%02d.%06d.txt",
+            mst->network, mst->station, mst->location, mst->channel, mst->dataquality,
+            btime.year, month, mday, btime.hour, btime.min, btime.sec,
+            (int)(mst->starttime - (hptime_t)MS_HPTIME2EPOCH(mst->starttime) * HPTMODULUS) );
 
+  /* Generate and open output file name if single file not being used and no ZIP output */
+  if ( ! ofp && ! zipfile )
+  {
     /* Open output file */
     if ( (ofp = fopen (outfile, "wb")) == NULL )
     {
@@ -269,17 +341,38 @@ writeascii (MSTrace *mst)
     outname = outfile;
   }
 
+#ifndef NOFDZIP
+  /* Begin ZIP entry */
+  if (zipfile)
+  {
+    if (!(zentry = zs_entrybegin (zstream, outfile, time (NULL),
+                                  zipmethod, &writestatus)))
+    {
+      fprintf (stderr, "Cannot begin ZIP entry, write status: %lld\n",
+               (long long int)writestatus);
+      return -1;
+    }
+  }
+#endif /* NOFDZIP */
+
   /* Header format:
-   * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units" */
+   * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units"   */
 
   if ( outformat == 1 || mst->sampletype == 'a' )
   {
     if ( verbose > 1 )
       fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
 
-    /* Print header line */
-    fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
-             srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    /* Create header line */
+    outsize = snprintf (outbuffer, sizeof(outbuffer),
+                        "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
+                        srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+
+    if (outsize > sizeof(outbuffer))
+      outsize = sizeof(outbuffer);
+
+    if (writedata (outbuffer, outsize, outfile))
+      return -1;
 
     lines = (mst->numsamples / slistcols) + ((slistcols == 1) ? 0 : 1);
 
@@ -288,12 +381,18 @@ writeascii (MSTrace *mst)
       fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
     }
 
+    outsize = 0;
+
     if ( mst->sampletype == 'a' )
     {
-      fwrite (mst->datasamples, (size_t) mst->numsamples, 1, ofp);
-      fprintf (ofp, "\n");
+      if (writedata (mst->datasamples, (size_t)mst->numsamples, outfile))
+        return -1;
+      if (writedata ("\n", 1, outfile))
+        return -1;
     }
     else
+    {
+      outsize = 0;
       for ( cnt = 0, line = 0; line < lines; line++ )
       {
         for ( col = 1; col <= slistcols ; col ++ )
@@ -302,33 +401,45 @@ writeascii (MSTrace *mst)
           {
             sptr = (char*)mst->datasamples + (cnt * samplesize);
 
-            if ( mst->sampletype == 'i' )
+            if (mst->sampletype == 'i')
             {
-              if ( col != slistcols )
-                fprintf (ofp, "%-10d  ", *(int32_t *)sptr);
+              if (col != slistcols)
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10d  ", *(int32_t *)sptr);
               else
-                fprintf (ofp, "%d", *(int32_t *)sptr);
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%d", *(int32_t *)sptr);
+
+              if (writedata (outbuffer, outsize, outfile))
+                return -1;
             }
-            else if ( mst->sampletype == 'f' )
+            else if (mst->sampletype == 'f')
             {
               if ( col != slistcols )
-                fprintf (ofp, "%-10.8g  ", *(float *)sptr);
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10.8g  ", *(float *)sptr);
               else
-                fprintf (ofp, "%.8g", *(float *)sptr);
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%.8g", *(float *)sptr);
+
+              if (writedata (outbuffer, outsize, outfile))
+                return -1;
             }
             else if ( mst->sampletype == 'd' )
             {
               if ( col != slistcols )
-                fprintf (ofp, "%-10.10g  ", *(double *)sptr);
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10.10g  ", *(double *)sptr);
               else
-                fprintf (ofp, "%.10g", *(double *)sptr);
+                outsize = snprintf (outbuffer, sizeof (outbuffer), "%.10g", *(double *)sptr);
+
+              if (writedata (outbuffer, outsize, outfile))
+                return -1;
             }
 
             cnt++;
           }
         }
-        fprintf (ofp, "\n");
+
+        if (writedata ("\n", 1, outfile))
+          return -1;
       }
+    }
   }
   else if ( outformat == 2 )
   {
@@ -338,9 +449,16 @@ writeascii (MSTrace *mst)
     if ( verbose > 1 )
       fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
 
-    /* Print header line */
-    fprintf (ofp, "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
-             srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    /* Create header line */
+    outsize = snprintf (outbuffer, sizeof(outbuffer),
+                        "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
+                        srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+
+    if (outsize > sizeof(outbuffer))
+      outsize = sizeof(outbuffer);
+
+    if (writedata (outbuffer, outsize, outfile))
+      return -1;
 
     if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
     {
@@ -354,13 +472,16 @@ writeascii (MSTrace *mst)
       sptr = (char*)mst->datasamples + (cnt * samplesize);
 
       if ( mst->sampletype == 'i' )
-        fprintf (ofp, "%s  %d\n", timestr, *(int32_t *)sptr);
+       outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %d\n", timestr, *(int32_t *)sptr);
 
       else if ( mst->sampletype == 'f' )
-        fprintf (ofp, "%s  %.8g\n", timestr, *(float *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %.8g\n", timestr, *(float *)sptr);
 
       else if ( mst->sampletype == 'd' )
-        fprintf (ofp, "%s  %.10g\n", timestr, *(double *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %.10g\n", timestr, *(double *)sptr);
+
+      if (writedata (outbuffer, outsize, outfile))
+        return -1;
 
       samptime = mst->starttime + (hptime_t)((cnt+1) * hpperiod);
     }
@@ -376,12 +497,64 @@ writeascii (MSTrace *mst)
     ofp = 0;
   }
 
-  fprintf (stderr, "Wrote %lld samples from %s to %s\n",
-	   (long long int)mst->numsamples, srcname, outname);
+#ifndef NOFDZIP
+  /* End ZIP entry */
+  if (zipfile)
+  {
+    if (!zs_entryend (zstream, zentry, &writestatus))
+    {
+      fprintf (stderr, "Error ending ZIP entry for %s, write status: %lld\n",
+               outfile, (long long int)writestatus);
+      return 1;
+    }
+  }
+
+  zentry = 0;
+#endif /* NOFDZIP */
+
+  fprintf (stderr, "Wrote %lld samples for %s\n",
+	   (long long int)mst->numsamples, srcname);
 
   return mst->numsamples;
 }  /* End of writeascii() */
 
+/***************************************************************************
+ * writedata:
+ *
+ * Write data buffer to output destinations.
+ *
+ * Returns 0 on success or -1 on error.
+ ***************************************************************************/
+static int
+writedata (char *outbuffer, size_t outsize, char *outfile)
+{
+#ifndef NOFDZIP
+  ssize_t writestatus = 0;
+#endif /* NOFDZIP */
+
+  if (ofp)
+  {
+    if (fwrite (outbuffer, outsize, 1, ofp) != 1 )
+    {
+      fprintf (stderr, "Error adding entry data for %s to output file\n", outfile);
+      return -1;
+    }
+  }
+
+#ifndef NOFDZIP
+  if (zipfile)
+  {
+    if (!zs_entrydata (zstream, zentry, (uint8_t *)outbuffer, outsize, &writestatus))
+    {
+      fprintf (stderr, "Error adding entry data for %s to output ZIP, write status: %lld\n",
+               outfile, (long long int)writestatus);
+      return -1;
+    }
+  }
+#endif /* NOFDZIP */
+
+  return 0;
+}  /* End of writedata() */
 
 /***************************************************************************
  * parameter_proc:
@@ -423,6 +596,18 @@ parameter_proc (int argcount, char **argvec)
     {
       indifile = 1;
     }
+#ifndef NOFDZIP
+    else if (strcmp (argvec[optind], "-z") == 0)
+    {
+      zipfile = getoptval (argcount, argvec, optind++, 1);
+      zipmethod = ZS_DEFLATE;
+    }
+    else if (strcmp (argvec[optind], "-z0") == 0)
+    {
+      zipfile = getoptval (argcount, argvec, optind++, 1);
+      zipmethod = ZS_STORE;
+    }
+#endif
     else if (strcmp (argvec[optind], "-tt") == 0)
     {
       timetol = strtod (getoptval(argcount, argvec, optind++, 0), NULL);
@@ -463,7 +648,7 @@ parameter_proc (int argcount, char **argvec)
     }
   }
 
-  /* Make sure an input files were specified */
+  /* Make sure input files were specified */
   if ( filelist == 0 )
   {
     fprintf (stderr, "No input files were specified\n\n");
@@ -475,6 +660,13 @@ parameter_proc (int argcount, char **argvec)
   /* Report the program version */
   if ( verbose )
     fprintf (stderr, "%s version: %s\n", PACKAGE, VERSION);
+
+  /* Sanity check the number of columns */
+  if (slistcols > 100)
+  {
+    fprintf (stderr, "\nToo many data sample columns specified: %d\n", slistcols);
+    exit (1);
+  }
 
   /* Check the input files for any list files, if any are found
    * remove them from the list and add the contained list */
@@ -744,10 +936,19 @@ usage (void)
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
 	   " -c cols      Number of columns for sample value list output (default is %d)\n"
-	   " -u units     Specify units string for headers, default is 'Counts'\n"
-	   "\n"
+	   " -u units     Specify units string for headers, default is 'Counts'\n",
+	   slistcols);
+
+#ifndef NOFDZIP
+  fprintf (stderr,
+           " -z zipfile   Write all files to a ZIP archive, use '-' for stdout\n"
+           " -z0 zipfile  Same as -z but do not compress archive entries\n");
+#endif
+
+  fprintf (stderr,
+           "\n"
 	   "A separate output file is written for each continuous input time-series\n"
 	   "with file names of the form:\n"
 	   "Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.FFFFFF.txt\n"
-	   "\n", slistcols);
+	   "\n");
 }  /* End of usage() */

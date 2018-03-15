@@ -1,3 +1,6 @@
+2018.073:
+	- Add -z and -z0 options to output ZIP archives.
+
 2017.199: 2.2	
 	- Update libmseed to 2.19.4.
 	- Improve resolution of timestamps for TSPAIR output for non-integer

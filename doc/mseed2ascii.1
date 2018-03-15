@@ -1,6 +1,6 @@
-.TH MSEED2ASCII 1 2013/10/06
+.TH MSEED2ASCII 1 2018/03/14
 .SH NAME
-miniSEED to ASCII converter
+mseed2ascii \- miniSEED to ASCII converter
 
 .SH SYNOPSIS
 .nf
@@ -93,6 +93,15 @@ default is 1 column.
 .IP "-u \fIunits\fP"
 Specify the units string that should be included in the ASCII output
 headers, the default is "Counts".
+
+.IP "-z \fIzipfile\fP"
+Create a ZIP archive containing all SAC files instead of writing
+individual files.  Each file is compressed with the deflate method.
+Specify \fB"-"\fP (dash) to write ZIP archive to stdout.
+
+.IP "-z0 \fIzipfile\fP"
+Same as \fI"-z"\fP except do not compress the SAC files.  Specify
+\fB"-"\fP (dash) to write ZIP archive to stdout.
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed
