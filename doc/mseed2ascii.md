@@ -1,4 +1,5 @@
-# <p >miniSEED to ASCII converter</p>
+# <p >mseed2ascii 
+###  miniSEED to ASCII converter</p>
 
 1. [Name](#)
 1. [Synopsis](#synopsis)
@@ -68,6 +69,10 @@ For example:
 
 <p style="padding-left: 30px;">Write all ASCII output to <i>outfile</i>, if <i>outfile</i> is a single dash (-) then all output will go to stdout.  If this option is not specified each contiguous segment is written to a separate file.  All diagnostic output from the program is written to stderr and should never get mixed with data going to stdout.</p>
 
+<b>-G</b>
+
+<p style="padding-left: 30px;">Produce GeoCSV formatted output. With this option multi-column sample lists are not allowed, i.e. the <b>-c</b> option is ignored.</p>
+
 <b>-f </b><i>format</i>
 
 <p style="padding-left: 30px;">The default output format is sample list.  This option applies to all output files:</p>
@@ -84,6 +89,14 @@ For example:
 <b>-u </b><i>units</i>
 
 <p style="padding-left: 30px;">Specify the units string that should be included in the ASCII output headers, the default is "Counts".</p>
+
+<b>-z </b><i>zipfile</i>
+
+<p style="padding-left: 30px;">Create a ZIP archive containing all SAC files instead of writing individual files.  Each file is compressed with the deflate method. Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
+
+<b>-z0 </b><i>zipfile</i>
+
+<p style="padding-left: 30px;">Same as <i>"-z"</i> except do not compress the SAC files.  Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
 
 ## <a id='list-files'>List Files</a>
 
@@ -105,4 +118,4 @@ IRIS Data Management Center
 </pre>
 
 
-(man page 2013/10/06)
+(man page 2018/03/14)
