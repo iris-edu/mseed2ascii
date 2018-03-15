@@ -47,6 +47,7 @@ static char  *unitsstr     = "Counts"; /* Units to write into output headers */
 static char  *outputfile   = 0;    /* Output file name for single file output */
 static FILE  *ofp          = 0;    /* Output file pointer */
 static int    outformat    = 1;    /* Output file format */
+static int    headerformat = 1;    /* 1 = Simple ASCII, 2 = GeoCSV */
 static int    slistcols    = 1;    /* Number of columns for sample list output */
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
 static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
@@ -355,8 +356,19 @@ writeascii (MSTrace *mst)
   }
 #endif /* NOFDZIP */
 
-  /* Header format:
-   * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units"   */
+  /* Simple ASCII header format:
+   * "TIMESERIES Net_Sta_Loc_Chan_Qual, ## samples, ## sps, isotime, SLIST|TSPAIR, INTEGER|FLOAT|ASCII, Units"
+   *
+   * GeoCSV header format:
+   * "# dataset: GeoCSV 2.0"
+   * "# delimeter: ,"
+   * "# TSID: <TIMESERIES ID>"
+   * "# sample_count: <COUNT>"
+   * "# sample_rate: <RATE>"
+   * "# start_time: <RATE>"
+   * "# field_unit: UTC, <TYPE>"
+   * "# field_type: datetime, <TYPE>"
+   */
 
   if ( outformat == 1 || mst->sampletype == 'a' )
   {
@@ -364,9 +376,34 @@ writeascii (MSTrace *mst)
       fprintf (stderr, "Writing ASCII sample list file: %s\n", outname);
 
     /* Create header line */
-    outsize = snprintf (outbuffer, sizeof(outbuffer),
-                        "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
-                        srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    if (headerformat == 1)
+    {
+      outsize = snprintf (outbuffer, sizeof(outbuffer),
+                          "TIMESERIES %s, %lld samples, %g sps, %s, SLIST, %s, %s\n",
+                          srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    }
+    else
+    {
+      /* GeoCSV sample list can only be a single column */
+      slistcols = 1;
+
+      outsize = snprintf (outbuffer, sizeof(outbuffer),
+                          "# dataset: GeoCSV 2.0\n"
+                          "# delimeter: ,\n"
+                          "# TSID: %s\n"
+                          "# sample_count: %lld\n"
+                          "# sample_rate: %g\n"
+                          "# start_time: %sZ\n"
+                          "# field_unit: %s\n"
+                          "# field_type: %s\n"
+                          "Sample\n",
+                          srcname,
+                          (long long int)mst->numsamples,
+                          mst->samprate,
+                          timestr,
+                          unitsstr,
+                          samptype);
+    }
 
     if (outsize > sizeof(outbuffer))
       outsize = sizeof(outbuffer);
@@ -450,9 +487,31 @@ writeascii (MSTrace *mst)
       fprintf (stderr, "Writing ASCII time-sample pair file: %s\n", outname);
 
     /* Create header line */
-    outsize = snprintf (outbuffer, sizeof(outbuffer),
-                        "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
-                        srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    if (headerformat == 1)
+    {
+      outsize = snprintf (outbuffer, sizeof(outbuffer),
+                          "TIMESERIES %s, %lld samples, %g sps, %s, TSPAIR, %s, %s\n",
+                          srcname, (long long int)mst->numsamples, mst->samprate, timestr, samptype, unitsstr);
+    }
+    else
+    {
+      outsize = snprintf (outbuffer, sizeof(outbuffer),
+                          "# dataset: GeoCSV 2.0\n"
+                          "# delimeter: ,\n"
+                          "# TSID: %s\n"
+                          "# sample_count: %lld\n"
+                          "# sample_rate: %g\n"
+                          "# start_time: %sZ\n"
+                          "# field_unit: UTC, %s\n"
+                          "# field_type: datetime, %s\n"
+                          "Time, Sample\n",
+                          srcname,
+                          (long long int)mst->numsamples,
+                          mst->samprate,
+                          timestr,
+                          unitsstr,
+                          samptype);
+    }
 
     if (outsize > sizeof(outbuffer))
       outsize = sizeof(outbuffer);
@@ -619,6 +678,10 @@ parameter_proc (int argcount, char **argvec)
     else if (strcmp (argvec[optind], "-o") == 0)
     {
       outputfile = getoptval(argcount, argvec, optind++, 1);
+    }
+    else if (strcmp (argvec[optind], "-G") == 0)
+    {
+      headerformat = 2;
     }
     else if (strcmp (argvec[optind], "-f") == 0)
     {
@@ -925,14 +988,15 @@ usage (void)
 	   " -V           Report program version\n"
 	   " -h           Show this usage message\n"
 	   " -v           Be more verbose, multiple flags can be used\n"
-	   " -r bytes     Specify SEED record length in bytes, default: 4096\n"
+	   " -r bytes     Specify SEED record length in bytes, default: autodetect\n"
 	   " -dr          Use the sampling rate derived from the time stamps instead\n"
 	   "                of the sample rate denoted in the input data\n"
 	   " -i           Process each input file individually instead of merged\n"
            " -tt secs     Specify a time tolerance for continuous traces\n"
            " -rt diff     Specify a sample rate tolerance for continuous traces\n"
            " -o outfile   Specify the output file, default is segment files\n"
-	   " -f format    Specify ASCII output format (default is 1):\n"
+	   " -G           Produce GeoCSV formatted output\n"
+	   " -f format    Specify output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
 	   " -c cols      Number of columns for sample value list output (default is %d)\n"

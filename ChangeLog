@@ -1,6 +1,7 @@
 2018.073:
 	- Update libmseed to 2.19.5.
 	- Add -z and -z0 options to output ZIP archives.
+	- Add -G option to produce GeoCSV formatted output.
 
 2017.199: 2.2	
 	- Update libmseed to 2.19.4.

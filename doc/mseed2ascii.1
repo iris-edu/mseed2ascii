@@ -77,6 +77,10 @@ specified each contiguous segment is written to a separate file.  All
 diagnostic output from the program is written to stderr and should
 never get mixed with data going to stdout.
 
+.IP "-G         "
+Produce GeoCSV formatted output. With this option multi-column sample
+lists are not allowed, i.e. the \fB-c\fP option is ignored.
+
 .IP "-f \fIformat\fP"
 The default output format is sample list.  This option applies to all
 output files:
