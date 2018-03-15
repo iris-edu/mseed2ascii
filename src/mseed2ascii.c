@@ -37,7 +37,7 @@ struct metanode
 {
   char *metafields[MAXMETAFIELDS];
   double dip;
-  double scale;
+  double scalefactor;
   hptime_t starttime;
   hptime_t endtime;
 };
@@ -64,6 +64,7 @@ static FILE  *ofp          = 0;    /* Output file pointer */
 static int    outformat    = 1;    /* Output file format */
 static int    headerformat = 1;    /* 1 = Simple ASCII, 2 = GeoCSV */
 static int    slistcols    = 1;    /* Number of columns for sample list output */
+static int    scaledata    = 0;    /* Scale data, inversly, by factor in metadata */
 static double timetol      = -1.0; /* Time tolerance for continuous traces */
 static double sampratetol  = -1.0; /* Sample rate tolerance for continuous traces */
 
@@ -258,6 +259,9 @@ writeascii (MSTrace *mst)
   int64_t line;
   int64_t lines;
   void *sptr;
+  int32_t *idata;
+  float *fdata;
+  double *ddata;
 
 #ifndef NOFDZIP
   ssize_t writestatus = 0;
@@ -357,9 +361,45 @@ writeascii (MSTrace *mst)
     outname = outfile;
   }
 
+  if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
+  {
+    fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
+  }
+
   /* Search for matching metadata */
   if (metadata)
     mn = getmetadata (mst);
+
+  /* Scale data samples if scale factor available
+   * Integer data are converted to float
+   * Units are taken from the metata */
+  if (scaledata && mn && mn->metafields[11] && mn->scalefactor)
+  {
+    for (cnt = 0; cnt < mst->numsamples; cnt++)
+    {
+      idata = (int32_t *)mst->datasamples + cnt;
+      fdata = (float *)mst->datasamples + cnt;
+      ddata = (double *)mst->datasamples + cnt;
+
+      /* Integers are converted to floats */
+      if (mst->sampletype == 'i')
+        *fdata = (float)*idata / mn->scalefactor;
+
+      else if (mst->sampletype == 'f')
+        *fdata = *fdata / mn->scalefactor;
+
+      else if (mst->sampletype == 'd')
+        *ddata = *ddata / mn->scalefactor;
+    }
+
+    if (mst->sampletype == 'i')
+    {
+      mst->sampletype = 'f';
+      samptype = "FLOAT";
+    }
+
+    unitsstr = mn->metafields[13];
+  }
 
 #ifndef NOFDZIP
   /* Begin ZIP entry */
@@ -498,11 +538,6 @@ writeascii (MSTrace *mst)
 
     lines = (mst->numsamples / slistcols) + ((slistcols == 1) ? 0 : 1);
 
-    if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
-    {
-      fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
-    }
-
     outsize = 0;
 
     if ( mst->sampletype == 'a' )
@@ -592,11 +627,6 @@ writeascii (MSTrace *mst)
 
     if (writedata (outbuffer, outsize, outfile))
       return -1;
-
-    if ( (samplesize = ms_samplesize(mst->sampletype)) == 0 )
-    {
-      fprintf (stderr, "Unrecognized sample type: %c\n", mst->sampletype);
-    }
 
     for ( cnt = 0; cnt < mst->numsamples; cnt++ )
     {
@@ -750,6 +780,10 @@ parameter_proc (int argcount, char **argvec)
       {
         fprintf (stderr, "Error adding metadata fields for line:\n%s\n", metaline);
       }
+    }
+    else if (strcmp (argvec[optind], "-s") == 0)
+    {
+      scaledata = 1;
     }
     else if (strcmp (argvec[optind], "-f") == 0)
     {
@@ -1252,8 +1286,8 @@ addmetadata (char *metaline)
   /* Parse scale factor */
   if (mn.metafields[11])
   {
-    mn.scale = strtod (mn.metafields[11], &endptr);
-    if (mn.scale == 0.0 && endptr == mn.metafields[11])
+    mn.scalefactor = strtod (mn.metafields[11], &endptr);
+    if (mn.scalefactor == 0.0 && endptr == mn.metafields[11])
     {
       fprintf (stderr, "Error parsing scale factor: '%s'\n", mn.metafields[11]);
       exit (1);
@@ -1429,6 +1463,7 @@ usage (void)
 	   " -u units     Specify units string for headers, default is 'Counts'\n"
            " -m metafile    File containing channel metadata (coordinates and more)\n"
            " -M metaline    Channel metadata, same format as lines in metafile\n"
+           " -s           Scale data, inversely, by the scale factor in metadata\n"
 	   " -f format    Specify output format (default is 1):\n"
            "                1=Header followed by sample value list\n"
            "                2=Header followed by time-sample value pairs\n"
