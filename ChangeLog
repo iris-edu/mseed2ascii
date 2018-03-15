@@ -1,3 +1,7 @@
+2018.074:
+	- Add -m and -M options to accept simple metadata, included in
+	GeoCSV output.
+
 2018.073:
 	- Update libmseed to 2.19.5.
 	- Add -z and -z0 options to output ZIP archives.
