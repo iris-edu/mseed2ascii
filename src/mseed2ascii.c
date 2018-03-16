@@ -5,7 +5,7 @@
  *
  * Written by Chad Trabant, IRIS Data Management Center
  *
- * modified 2018.074
+ * modified 2018.075
  ***************************************************************************/
 
 #include <stdio.h>
@@ -251,6 +251,7 @@ writeascii (MSTrace *mst)
   char timestr[50];
   char srcname[50];
   char *samptype;
+  char *delimeter = " ";
   char outbuffer[2048];
   int outsize;
 
@@ -421,7 +422,7 @@ writeascii (MSTrace *mst)
    *
    * GeoCSV header format:
    * "# dataset: GeoCSV 2.0"
-   * "# delimeter: ,"
+   * "# delimeter: <DELIMETER>"
    * "# TSID: <TIMESERIES ID>"
    * "# sample_count: <COUNT>"
    * "# sample_rate_hz: <RATE>"
@@ -446,6 +447,8 @@ writeascii (MSTrace *mst)
   /* Create initial part of header */
   if (headerformat == 1)
   {
+    delimeter = " ";
+
     /* Simple text header */
     outsize = snprintf (outbuffer, sizeof(outbuffer),
                         "TIMESERIES %s, %lld samples, %g sps, %s, ",
@@ -453,14 +456,17 @@ writeascii (MSTrace *mst)
   }
   else
   {
+    delimeter = ",";
+
     /* GeoCSV header */
     outsize = snprintf (outbuffer, sizeof(outbuffer),
                         "# dataset: GeoCSV 2.0\n"
-                        "# delimeter: ,\n"
+                        "# delimeter: %s\n"
                         "# TSID: %s\n"
                         "# sample_count: %lld\n"
                         "# sample_rate_hz: %g\n"
                         "# start_time: %sZ\n",
+                        delimeter,
                         srcname,
                         (long long int)mst->numsamples,
                         mst->samprate,
@@ -636,13 +642,13 @@ writeascii (MSTrace *mst)
       sptr = (char*)mst->datasamples + (cnt * samplesize);
 
       if ( mst->sampletype == 'i' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %d\n", timestr, *(int32_t *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %d\n", timestr, delimeter, *(int32_t *)sptr);
 
       else if ( mst->sampletype == 'f' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %.8g\n", timestr, *(float *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %.8g\n", timestr, delimeter, *(float *)sptr);
 
       else if ( mst->sampletype == 'd' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s  %.10g\n", timestr, *(double *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %.10g\n", timestr, delimeter, *(double *)sptr);
 
       if (writedata (outbuffer, outsize, outfile))
         return -1;
