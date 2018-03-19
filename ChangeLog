@@ -1,5 +1,8 @@
+2018.078:
+	- Correct spelling of "delimiter".
+
 2018.075:
-	- Include delimeter between time and sample value in GeoCSV.
+	- Include delimiter between time and sample value in GeoCSV.
 
 2018.074:
 	- Add -m and -M options to accept simple metadata, included in
