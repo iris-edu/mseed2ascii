@@ -1,5 +1,7 @@
 2018.081:
 	- Use SID (source identifier) as opposed to TSID in GeoCSV.
+	- Do not include "quality" code in SID in GeoCSV.
+	- Add 'Z' UTC designator to TSPAIR output for GeoCSV.
 
 2018.078:
 	- Correct spelling of "delimiter".

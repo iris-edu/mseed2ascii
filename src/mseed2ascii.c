@@ -643,13 +643,16 @@ writeascii (MSTrace *mst)
       sptr = (char*)mst->datasamples + (cnt * samplesize);
 
       if ( mst->sampletype == 'i' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %d\n", timestr, delimiter, *(int32_t *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %d\n",
+                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(int32_t *)sptr);
 
       else if ( mst->sampletype == 'f' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %.8g\n", timestr, delimiter, *(float *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %.8g\n",
+                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(float *)sptr);
 
       else if ( mst->sampletype == 'd' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s %.10g\n", timestr, delimiter, *(double *)sptr);
+        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %.10g\n",
+                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(double *)sptr);
 
       if (writedata (outbuffer, outsize, outfile))
         return -1;
