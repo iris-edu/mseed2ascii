@@ -315,7 +315,10 @@ writeascii (MSTrace *mst)
 	     mst->network, mst->station, mst->location, mst->channel);
 
   /* Generate source name, ISO time string and time components */
-  mst_srcname (mst, srcname, 1);
+  if (headerformat == 1) /* For simple text include quality code */
+    mst_srcname (mst, srcname, 1);
+  else                   /* For GeoCSV exclude quality code */
+    mst_srcname (mst, srcname, 0);
   ms_hptime2isotimestr (mst->starttime, timestr, 1);
   ms_hptime2btime (mst->starttime, &btime);
   ms_doy2md (btime.year, btime.day, &month, &mday);
