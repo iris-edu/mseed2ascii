@@ -4,8 +4,6 @@
  * Convert miniSEED waveform data to ASCII formats
  *
  * Written by Chad Trabant, IRIS Data Management Center
- *
- * modified 2018.078
  ***************************************************************************/
 
 #include <stdio.h>
@@ -423,7 +421,7 @@ writeascii (MSTrace *mst)
    * GeoCSV header format:
    * "# dataset: GeoCSV 2.0"
    * "# delimiter: <DELIMITER>"
-   * "# TSID: <TIMESERIES ID>"
+   * "# SID: <SOURCE ID>"
    * "# sample_count: <COUNT>"
    * "# sample_rate_hz: <RATE>"
    * "# start_time: <RATE>"
@@ -462,7 +460,7 @@ writeascii (MSTrace *mst)
     outsize = snprintf (outbuffer, sizeof(outbuffer),
                         "# dataset: GeoCSV 2.0\n"
                         "# delimiter: %s\n"
-                        "# TSID: %s\n"
+                        "# SID: %s\n"
                         "# sample_count: %lld\n"
                         "# sample_rate_hz: %g\n"
                         "# start_time: %sZ\n",

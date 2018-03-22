@@ -1,3 +1,6 @@
+2018.081:
+	- Use SID (source identifier) as opposed to TSID in GeoCSV.
+
 2018.078:
 	- Correct spelling of "delimiter".
 
