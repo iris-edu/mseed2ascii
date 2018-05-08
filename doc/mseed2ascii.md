@@ -78,7 +78,7 @@ For example:
 
 <b>-s</b>
 
-<p style="padding-left: 30px;">Scale the data, inversely, by the scale factor in metadata.  Integer data will be converted to float type.  The relavent units from the metadata will be reported in the header.</p>
+<p style="padding-left: 30px;">Scale the data, inversely, by the scale factor in metadata.  Integer data will be converted to float type.  The relevant units from the metadata will be reported in the header.</p>
 
 <b>-f </b><i>format</i>
 
