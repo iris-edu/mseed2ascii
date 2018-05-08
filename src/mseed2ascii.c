@@ -19,7 +19,7 @@
 #include "fdzipstream.h"
 #endif
 
-#define VERSION "2.3dev"
+#define VERSION "2.3"
 #define PACKAGE "mseed2ascii"
 
 /* Maximum number of metadata fields per line */

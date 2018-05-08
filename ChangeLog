@@ -1,4 +1,4 @@
-2018.081:
+2018.081: 2.3
 	- Use SID (source identifier) as opposed to TSID in GeoCSV.
 	- Do not include "quality" code in SID in GeoCSV.
 	- Add 'Z' UTC designator to TSPAIR output for GeoCSV.
