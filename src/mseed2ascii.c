@@ -19,7 +19,7 @@
 #include "fdzipstream.h"
 #endif
 
-#define VERSION "2.3"
+#define VERSION "2.4dev"
 #define PACKAGE "mseed2ascii"
 
 /* Maximum number of metadata fields per line */
@@ -250,7 +250,7 @@ writeascii (MSTrace *mst)
   char srcname[50];
   char *samptype;
   char *delimiter = " ";
-  char outbuffer[2048];
+  char outbuffer[8192];
   int outsize;
 
   int month, mday;
@@ -569,40 +569,52 @@ writeascii (MSTrace *mst)
             if (mst->sampletype == 'i')
             {
               if (col != slistcols)
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10d  ", *(int32_t *)sptr);
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%-10d  ", *(int32_t *)sptr);
               else
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%d", *(int32_t *)sptr);
-
-              if (writedata (outbuffer, outsize, outfile))
-                return -1;
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%d", *(int32_t *)sptr);
             }
             else if (mst->sampletype == 'f')
             {
               if ( col != slistcols )
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10.8g  ", *(float *)sptr);
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%-10.8g  ", *(float *)sptr);
               else
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%.8g", *(float *)sptr);
-
-              if (writedata (outbuffer, outsize, outfile))
-                return -1;
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%.8g", *(float *)sptr);
             }
             else if ( mst->sampletype == 'd' )
             {
               if ( col != slistcols )
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%-10.10g  ", *(double *)sptr);
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%-10.10g  ", *(double *)sptr);
               else
-                outsize = snprintf (outbuffer, sizeof (outbuffer), "%.10g", *(double *)sptr);
-
-              if (writedata (outbuffer, outsize, outfile))
-                return -1;
+                outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize,
+                                     "%.10g", *(double *)sptr);
             }
 
             cnt++;
           }
         }
 
-        if (writedata ("\n", 1, outfile))
+        outsize += snprintf (outbuffer + outsize, sizeof (outbuffer) - outsize, "\n");
+
+        /* Write data if less than 1024 bytes available */
+        if ((sizeof (outbuffer) - outsize) < 1024)
+        {
+          if (writedata (outbuffer, outsize, outfile))
+            return -1;
+          outsize = 0;
+        }
+      } /* Done looping through lines and samples */
+
+      /* Flush any unwritten output */
+      if (outsize > 0)
+      {
+        if (writedata (outbuffer, outsize, outfile))
           return -1;
+        outsize = 0;
       }
     }
   }
@@ -636,6 +648,7 @@ writeascii (MSTrace *mst)
     if (writedata (outbuffer, outsize, outfile))
       return -1;
 
+    outsize = 0;
     for ( cnt = 0; cnt < mst->numsamples; cnt++ )
     {
       ms_hptime2isotimestr (samptime, timestr, 1);
@@ -643,21 +656,34 @@ writeascii (MSTrace *mst)
       sptr = (char*)mst->datasamples + (cnt * samplesize);
 
       if ( mst->sampletype == 'i' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %d\n",
-                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(int32_t *)sptr);
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize, "%s%s%s %d\n",
+                             timestr, (headerformat == 1) ? "" : "Z", delimiter, *(int32_t *)sptr);
 
       else if ( mst->sampletype == 'f' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %.8g\n",
-                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(float *)sptr);
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize, "%s%s%s %.8g\n",
+                             timestr, (headerformat == 1) ? "" : "Z", delimiter, *(float *)sptr);
 
       else if ( mst->sampletype == 'd' )
-        outsize = snprintf (outbuffer, sizeof(outbuffer), "%s%s%s %.10g\n",
-                            timestr, (headerformat == 1) ? "" : "Z", delimiter, *(double *)sptr);
-
-      if (writedata (outbuffer, outsize, outfile))
-        return -1;
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize, "%s%s%s %.10g\n",
+                             timestr, (headerformat == 1) ? "" : "Z", delimiter, *(double *)sptr);
 
       samptime = mst->starttime + (hptime_t)((cnt+1) * hpperiod);
+
+      /* Write data if less than 1024 bytes available */
+      if ((sizeof (outbuffer) - outsize) < 1024)
+      {
+        if (writedata (outbuffer, outsize, outfile))
+          return -1;
+        outsize = 0;
+      }
+    } /* Done looping through samples */
+
+    /* Flush any unwritten output */
+    if (outsize > 0)
+    {
+      if (writedata (outbuffer, outsize, outfile))
+        return -1;
+      outsize = 0;
     }
   }
   else

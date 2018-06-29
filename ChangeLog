@@ -1,3 +1,7 @@
+2018.179:
+	- Buffer data before writing to output.  Major optimization for
+	writing to uncompressed ZIP archives.
+
 2018.081: 2.3
 	- Use SID (source identifier) as opposed to TSID in GeoCSV.
 	- Do not include "quality" code in SID in GeoCSV.
