@@ -1,3 +1,6 @@
+2018.241: 2.4
+	- Update libmseed to 2.19.6.
+
 2018.179:
 	- Buffer data before writing to output.  Major optimization for
 	writing to uncompressed ZIP archives.
