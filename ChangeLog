@@ -1,5 +1,6 @@
-2019.120:
+2019.120: 2.5
 	- Fix detection of inclination/dip convention and documentation.
+	- Update fdzipstream source to 2.2.
 
 2018.241: 2.4
 	- Update libmseed to 2.19.6.

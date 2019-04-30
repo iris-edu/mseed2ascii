@@ -19,7 +19,7 @@
 #include "fdzipstream.h"
 #endif
 
-#define VERSION "2.4"
+#define VERSION "2.5"
 #define PACKAGE "mseed2ascii"
 
 /* Maximum number of metadata fields per line */
@@ -93,7 +93,7 @@ main (int argc, char **argv)
 #ifndef NOFDZIP
   FILE *zipfp;
   int zipfd;
-  ssize_t writestatus = 0;
+  int64_t writestatus = 0;
 #endif /* NOFDZIP */
 
   /* Process given parameters (command line and parameter file) */
@@ -263,7 +263,7 @@ writeascii (MSTrace *mst)
   double *ddata;
 
 #ifndef NOFDZIP
-  ssize_t writestatus = 0;
+  int64_t writestatus = 0;
 #endif /* NOFDZIP */
 
   if ( ! mst )
@@ -729,7 +729,7 @@ static int
 writedata (char *outbuffer, size_t outsize, char *outfile)
 {
 #ifndef NOFDZIP
-  ssize_t writestatus = 0;
+  int64_t writestatus = 0;
 #endif /* NOFDZIP */
 
   if (ofp)
