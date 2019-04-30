@@ -71,7 +71,7 @@ headers, the default is "Counts".
 .IP "-m \fImetafile\fP"
 Specify a file containing metadata such as coordinates, elevation,
 component orientation, scaling factor, etc.  For each time-series
-written any matching metadata will be added to the SAC header.  See
+written any matching metadata will be added to the GeoCSV header.  See
 \fIMETADATA FILES\fP below.
 
 .IP "-M \fImetaline\fP"
@@ -100,12 +100,12 @@ diagnostic output from the program is written to stderr and should
 never get mixed with data going to stdout.
 
 .IP "-z \fIzipfile\fP"
-Create a ZIP archive containing all SAC files instead of writing
+Create a ZIP archive containing all output files instead of writing
 individual files.  Each file is compressed with the deflate method.
 Specify \fB"-"\fP (dash) to write ZIP archive to stdout.
 
 .IP "-z0 \fIzipfile\fP"
-Same as \fI"-z"\fP except do not compress the SAC files.  Specify
+Same as \fI"-z"\fP except do not compress the output files.  Specify
 \fB"-"\fP (dash) to write ZIP archive to stdout.
 
 .IP "-r \fIbytes\fP"
@@ -125,14 +125,15 @@ sampling rates.  The default tolerance is tested as: (abs(1-sr1/sr2) <
 
 .SH "METADATA FILES"
 A metadata file contains a list of station parameters, some of which
-can be stored in SAC but not in miniSEED.  Each line in a metadata
+can be stored in GeoCSV but not in miniSEED.  Each line in a metadata
 file should be a list of parameters in the order shown below.  Each
-parameter should be separated with a comma or a vertical bar (|).
-\fbDIP CONVENTION:\fP When comma separators are used the dip field
-(CMPINC) is assumed to be in the SAC convention (degrees down from
-vertical up/outward), if vertical bars are used the dip field is
-assumed to be in the SEED convention (degrees down from horizontal)
-and converted to SAC convention.
+parameter should be separated with a comma (,) or a vertical bar (|).
+
+\fbDIP CONVENTION:\fP When vertical bars are used the dip field is
+assumed to be in the SEED convention (degrees down from horizontal),
+if comma separators are used the dip field (CMPINC) is assumed to be
+in the SAC convention (degrees down from vertical up/outward) and
+converted to SEED convention.
 
 \fBMetdata fields\fP:
 .nf
@@ -171,14 +172,6 @@ matching source name parameters (network, station, location and
 channel) and time window (if specified) will be inserted into the
 GeoCSV headers.  All parameters are optional except for the first four
 fields specifying the source name parameters.
-
-Simple wildcarding: for the source name parameters that will be
-matched a '*' character in a field will match anything.  The BHZ
-metadata lines above, for example, can be (almost) summarized as:
-
-.nf
-IU|ANMO|*|BHZ|34.9459|-106.4571|1671|145|0|0|Geotech KS-54000|3456610000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
-.fi
 
 .SH LIST FILES
 If an input file is prefixed with an '@' character the file is assumed

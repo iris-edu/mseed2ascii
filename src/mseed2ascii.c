@@ -492,7 +492,7 @@ writeascii (MSTrace *mst)
                              "# azimuth_deg: %s\n", mn->metafields[8]);
       if (mn->metafields[9])
         outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
-                             "# dip_deg: %s\n", mn->metafields[9]);
+                             "# dip_deg: %g\n", mn->dip);
       if (mn->metafields[10])
         outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
                              "# instrument: %s\n", mn->metafields[10]);
@@ -1220,7 +1220,7 @@ addmetadata (char *metaline)
   char *fp;
   char *endptr;
   char delim;
-  int sacinc = 1;
+  int sacinc = 0;
   int fields = 0;
   int commas = 0;
   int bars = 0;
@@ -1248,11 +1248,11 @@ addmetadata (char *metaline)
   if (bars > 0)
   {
     delim = '|';
-    sacinc = 1;
   }
   else
   {
     delim = ',';
+    sacinc = 1;
   }
 
   /* Must have at least 3 separators for Net, Sta, Loc, Chan ... */

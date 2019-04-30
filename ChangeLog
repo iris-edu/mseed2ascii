@@ -1,3 +1,6 @@
+2019.120:
+	- Fix detection of inclination/dip convention and documentation.
+
 2018.241: 2.4
 	- Update libmseed to 2.19.6.
 
@@ -50,8 +53,8 @@
 	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHHMMSS.ssssss.txt
 	which is consistent between between various operating systems.
 	The previously generated file name patterns were:
-	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.SAC (non-Windows)
-	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.SAC (Windows)
+	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH:MM:SS.txt (non-Windows)
+	  Net.Sta.Loc.Chan.Qual.YYYY-MM-DDTHH_MM_SS.txt (Windows)
 
 2011.231: 1.1
 	- Update libmseed to 2.6.1.
