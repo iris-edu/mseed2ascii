@@ -19,7 +19,7 @@
 #include "fdzipstream.h"
 #endif
 
-#define VERSION "2.5"
+#define VERSION "2.6"
 #define PACKAGE "mseed2ascii"
 
 /* Maximum number of metadata fields per line */
@@ -73,8 +73,9 @@ static ZIPentry *zentry = 0;
 static int zipmethod = -1;
 #endif
 
-struct listnode *filelist = 0;     /* A list of input files */
-struct listnode *metadata = 0;     /* List of stations and coordinates, etc. */
+struct listnode *filelist = NULL;    /* A list of input files */
+struct listnode *metadata = NULL;    /* List of stations and coordinates, etc. */
+struct listnode *extraheader = NULL; /* List of extra headers to insert */
 
 int
 main (int argc, char **argv)
@@ -243,6 +244,7 @@ static int64_t
 writeascii (MSTrace *mst)
 {
   struct metanode *mn = NULL;
+  struct listnode *en = NULL;
   BTime btime;
   char outfile[1024];
   char *outname = outputfile;
@@ -441,6 +443,9 @@ writeascii (MSTrace *mst)
    * "# scale_frequency: <SCALEFREQ>"
    * "# scale_units: <SCALEUNITS>"
 
+   * If extra headers are specified these are included as:
+   * "# <KEY>: <VALUE>"
+
    * "# field_unit: UTC, <TYPE>"
    * "# field_type: datetime, <TYPE>"
    */
@@ -505,6 +510,18 @@ writeascii (MSTrace *mst)
       if (mn->metafields[13])
         outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
                              "# scale_units: %s\n", mn->metafields[13]);
+    }
+
+    if (extraheader)
+    {
+      en = extraheader;
+      while (en)
+      {
+        outsize += snprintf (outbuffer + outsize, sizeof(outbuffer) - outsize,
+                             "# %s: %s\n", en->key, en->data);
+
+        en = en->next;
+      }
     }
   }
 
@@ -765,8 +782,10 @@ writedata (char *outbuffer, size_t outsize, char *outfile)
 static int
 parameter_proc (int argcount, char **argvec)
 {
-  char *metafile = 0;
-  char *metaline = 0;
+  char *extraline = NULL;
+  char *metafile = NULL;
+  char *metaline = NULL;
+  char *value;
   int optind;
 
   /* Process all command line arguments */
@@ -797,6 +816,27 @@ parameter_proc (int argcount, char **argvec)
     else if (strcmp (argvec[optind], "-G") == 0)
     {
       headerformat = 2;
+    }
+    else if (strcmp (argvec[optind], "-E") == 0)
+    {
+      extraline = getoptval(argcount, argvec, optind++, 0);
+
+      if ((value = strchr (extraline, ':')))
+      {
+        *value++ = '\0';
+      }
+      else
+      {
+        fprintf (stderr, "Error extracting value for extra header %s\n", extraline);
+        exit (1);
+      }
+
+      /* Add header key and value to the extra header list */
+      if ( ! addnode (&extraheader, extraline, strlen(extraline)+1, value, strlen(value)+1 ) )
+      {
+        fprintf (stderr, "Error adding extra header to list\n");
+        exit (1);
+      }
     }
     else if (strcmp (argvec[optind], "-c") == 0)
     {
@@ -862,7 +902,7 @@ parameter_proc (int argcount, char **argvec)
     }
     else
     {
-      /* Add the file name to the intput file list */
+      /* Add the file name to the input file list */
       if ( ! addnode (&filelist, NULL, 0, argvec[optind], strlen(argvec[optind])+1) )
       {
         fprintf (stderr, "Error adding file name to list\n");
@@ -1459,7 +1499,7 @@ addnode (struct listnode **listroot, void *key, int keylen,
     memcpy (newlp->key, key, keylen);
   }
 
-  if ( data)
+  if ( data )
   {
     newlp->data = malloc (datalen);
     memcpy (newlp->data, data, datalen);
@@ -1496,6 +1536,7 @@ usage (void)
 	   " -i           Process each input file individually instead of merged\n"
            "\n"
 	   " -G           Produce GeoCSV formatted output\n"
+	   " -E key:value Add extra header to output (currently only GeoCSV)\n"
 	   " -c cols      Number of columns for sample value list output (default is %d)\n"
 	   " -u units     Specify units string for headers, default is 'Counts'\n"
            " -m metafile    File containing channel metadata (coordinates and more)\n"

@@ -1,3 +1,6 @@
+2019.155: 2.6
+	- Add -E option to insert extra headers into GeoCSV.
+
 2019.120: 2.5
 	- Fix detection of inclination/dip convention and documentation.
 	- Update fdzipstream source to 2.2.

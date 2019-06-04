@@ -60,6 +60,10 @@ For example:
 
 <p style="padding-left: 30px;">Produce GeoCSV formatted output. With this option multi-column sample lists are not allowed, i.e. the <b>-c</b> option is ignored.</p>
 
+<b>-E </b><i>key:value</i>
+
+<p style="padding-left: 30px;">Insert extra header with <b>key</b> and <b>value</b> into GeoCSV formatted output.  This option may be specified multiple times.</p>
+
 <b>-c </b><i>cols</i>
 
 <p style="padding-left: 30px;">Specify the number of columns to use for sample list formatted output, default is 1 column.</p>
@@ -70,7 +74,7 @@ For example:
 
 <b>-m </b><i>metafile</i>
 
-<p style="padding-left: 30px;">Specify a file containing metadata such as coordinates, elevation, component orientation, scaling factor, etc.  For each time-series written any matching metadata will be added to the SAC header.  See <i>METADATA FILES</i> below.</p>
+<p style="padding-left: 30px;">Specify a file containing metadata such as coordinates, elevation, component orientation, scaling factor, etc.  For each time-series written any matching metadata will be added to the GeoCSV header.  See <i>METADATA FILES</i> below.</p>
 
 <b>-M </b><i>metaline</i>
 
@@ -95,11 +99,11 @@ For example:
 
 <b>-z </b><i>zipfile</i>
 
-<p style="padding-left: 30px;">Create a ZIP archive containing all SAC files instead of writing individual files.  Each file is compressed with the deflate method. Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
+<p style="padding-left: 30px;">Create a ZIP archive containing all output files instead of writing individual files.  Each file is compressed with the deflate method. Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
 
 <b>-z0 </b><i>zipfile</i>
 
-<p style="padding-left: 30px;">Same as <i>"-z"</i> except do not compress the SAC files.  Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
+<p style="padding-left: 30px;">Same as <i>"-z"</i> except do not compress the output files.  Specify <b>"-"</b> (dash) to write ZIP archive to stdout.</p>
 
 <b>-r </b><i>bytes</i>
 
@@ -115,7 +119,9 @@ For example:
 
 ## <a id='metadata-files'>Metadata Files</a>
 
-<p >A metadata file contains a list of station parameters, some of which can be stored in SAC but not in miniSEED.  Each line in a metadata file should be a list of parameters in the order shown below.  Each parameter should be separated with a comma or a vertical bar (|). <b>DIP CONVENTION:</b> When comma separators are used the dip field (CMPINC) is assumed to be in the SAC convention (degrees down from vertical up/outward), if vertical bars are used the dip field is assumed to be in the SEED convention (degrees down from horizontal) and converted to SAC convention.</p>
+<p >A metadata file contains a list of station parameters, some of which can be stored in GeoCSV but not in miniSEED.  Each line in a metadata file should be a list of parameters in the order shown below.  Each parameter should be separated with a comma (,) or a vertical bar (|).</p>
+
+<p ><b>DIP CONVENTION:</b> When vertical bars are used the dip field is assumed to be in the SEED convention (degrees down from horizontal), if comma separators are used the dip field (CMPINC) is assumed to be in the SAC convention (degrees down from vertical up/outward) and converted to SEED convention.</p>
 
 <p ><b>Metdata fields</b>:</p>
 <pre >
@@ -150,12 +156,6 @@ As a special case '--' can be used to match an empty location code.
 </pre>
 
 <p >For each time-series written, metadata from the first line with matching source name parameters (network, station, location and channel) and time window (if specified) will be inserted into the GeoCSV headers.  All parameters are optional except for the first four fields specifying the source name parameters.</p>
-
-<p >Simple wildcarding: for the source name parameters that will be matched a '*' character in a field will match anything.  The BHZ metadata lines above, for example, can be (almost) summarized as:</p>
-
-<pre >
-IU|ANMO|*|BHZ|34.9459|-106.4571|1671|145|0|0|Geotech KS-54000|3456610000|0.02|M/S|20|2008-06-30T20:00:00|2599-12-31T23:59:59
-</pre>
 
 ## <a id='list-files'>List Files</a>
 
