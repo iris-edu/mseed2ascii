@@ -6,7 +6,7 @@ includes a simple header followed by
 ## Documentation
 
 For usage infromation see the [mseed2ascii manual](doc/mseed2ascii.md) in the
-'doc' directory.
+`doc` directory.
 
 ## Downloading and building
 
@@ -17,6 +17,11 @@ In most Unix/Linux environments a simple 'make' will build the program.
 
 The CC and CFLAGS environment variables can be used to configure
 the build parameters.
+
+If your system does not have zlib you can compile the program without
+support for ZIP archive output: first type `make` in the main
+directory (the build will fail), then go to the `src` directory and
+type `make nozip`.
 
 In the Win32 environment the Makefile.win can be used with the nmake
 build tool included with Visual Studio.
